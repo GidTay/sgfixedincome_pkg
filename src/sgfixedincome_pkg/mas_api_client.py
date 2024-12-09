@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 import warnings
-import equations
+from sgfixedincome_pkg import equations
 
 class MAS_bondsandbills_APIClient:
     """

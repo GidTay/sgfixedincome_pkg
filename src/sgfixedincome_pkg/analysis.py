@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
-import equations
+from sgfixedincome_pkg import equations
 
 
 def best_rates(combined_df, investment_amount, min_tenure=0, max_tenure=999):
@@ -35,12 +35,11 @@ def best_rates(combined_df, investment_amount, min_tenure=0, max_tenure=999):
         raise ValueError(f"Cannot find valid products for an investment amount of {investment_amount}.")
 
     # Calculate the total dollar return for each row
-    total_return = equations.calculate_dollar_return(
+    valid_inv_df['Total Dollar Return'] = equations.calculate_dollar_return(
         investment_amount, 
         valid_inv_df['Rate'], 
         valid_inv_df['Tenure']
         )
-    valid_inv_df['Total Dollar Return'] = round(total_return, 2)
 
     # Group by tenure and get the row with the maximum total return for each tenure
     best_rates_df = valid_inv_df.loc[valid_inv_df.groupby('Tenure')['Total Dollar Return'].idxmax()]

@@ -1,5 +1,5 @@
-import scraper
-from mas_api_client import MAS_bondsandbills_APIClient
+from sgfixedincome_pkg import scraper
+from sgfixedincome_pkg.mas_api_client import MAS_bondsandbills_APIClient
 import pandas as pd
 
 # Used to merge dataframes from scraping bank websites and constructed from MAS APIs
