@@ -35,6 +35,10 @@ Interested in contributing? Check out the contributing guidelines. Please note t
 
 `sgfixedincome_pkg` was created by [Gideon Tay](https://github.com/GidTay). It is licensed under the terms of the MIT license.
 
+## Contact
+
+Reach out to me on [LinkedIn](https://www.linkedin.com/in/gideon-tay-yee-chuen/) if you have any questions or suggestions.
+
 ## Credits
 
 `sgfixedincome_pkg` was created with [`cookiecutter`](https://cookiecutter.readthedocs.io/en/latest/) and the `py-pkgs-cookiecutter` [template](https://github.com/py-pkgs/py-pkgs-cookiecutter).

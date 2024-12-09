@@ -12,15 +12,15 @@ def best_rates(combined_df, investment_amount, min_tenure=0, max_tenure=999):
     invested amounts.
 
     Parameters:
-    - combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
-                                   'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
-    - investment_amount (float): The investment amount to filter available rates and products for that amount and
-                                 to calculate the total return.
-    - min_tenure (int, optional): The minimum tenure (in months) to consider. Default is 0.
-    - max_tenure (int, optional): The maximum tenure (in months) to consider. Default is 999.
+        combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
+                                    'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
+        investment_amount (float): The investment amount to filter available rates and products for that amount and
+                                   to calculate the total return.
+        min_tenure (int, optional): The minimum tenure (in months) to consider. Default is 0.
+        max_tenure (int, optional): The maximum tenure (in months) to consider. Default is 999.
 
     Returns:
-    - pd.DataFrame: A DataFrame with the best rate (in % p.a.) and total return (in dollars) for each tenure.
+        pd.DataFrame: A DataFrame with the best rate (in % p.a.) and total return (in dollars) for each tenure.
     """
     # Filter rows where the investment_amount and Tenure is within the allowed bounds
     valid_inv_df = combined_df[
@@ -55,20 +55,20 @@ def filter_df(combined_df, investment_amount=None, min_tenure=0, max_tenure=999,
     product provider, product, and whether to consider T-bills and SSBs.
 
     Parameters:
-    - combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
-                                   'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
-    - investment_amount (float, optional): The investment amount to filter available rates and products for that amount.
-    - min_tenure (int, optional): The minimum tenure (in months) to filter. Default is 0.
-    - max_tenure (int, optional): The maximum tenure (in months) to filter. Default is 999.
-    - min_rate (float, optional): The minimum rate (% p.a.) to filter. Default is None (no filtering).
-    - consider_tbills (bool, optional): Whether to consider T-bills. Default is True.
-    - consider_ssbs (bool, optional): Whether to consider SSBs. Default is True.
-    - consider_fd (bool, optional): Whether to consider fixed deposits. Default is True.
-    - include_providers (list, optional): Exclusive list of providers to include. Default is None.
-    - exclude_providers (list, optional): List of providers to exclude. Default is None.
+        combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
+                                    'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
+        investment_amount (float, optional): The investment amount to filter available rates and products for that amount.
+        min_tenure (int, optional): The minimum tenure (in months) to filter. Default is 0.
+        max_tenure (int, optional): The maximum tenure (in months) to filter. Default is 999.
+        min_rate (float, optional): The minimum rate (% p.a.) to filter. Default is None (no filtering).
+        consider_tbills (bool, optional): Whether to consider T-bills. Default is True.
+        consider_ssbs (bool, optional): Whether to consider SSBs. Default is True.
+        consider_fd (bool, optional): Whether to consider fixed deposits. Default is True.
+        include_providers (list, optional): Exclusive list of providers to include. Default is None.
+        exclude_providers (list, optional): List of providers to exclude. Default is None.
 
     Returns:
-    - pd.DataFrame: The filtered DataFrame based on the provided criteria.
+        pd.DataFrame: The filtered DataFrame based on the provided criteria.
     """
     filtered_df = combined_df.copy()
 
@@ -113,10 +113,10 @@ def products(combined_df):
     It considers unique combinations of these joined strings.
 
     Parameters:
-    - combined_df (pd.DataFrame): DataFrame containing the columns 'Product provider' and 'Product'.
+        combined_df (pd.DataFrame): DataFrame containing the columns 'Product provider' and 'Product'.
 
     Returns:
-    - list: A list of unique product combinations in the format 'Product provider - Product'.
+        list: A list of unique product combinations in the format 'Product provider - Product'.
     """
     # Combine 'Product provider' and 'Product' into a single string for each row
     combined_df['Product Combination'] = combined_df['Product provider'] + ' - ' + combined_df['Product']
@@ -133,15 +133,15 @@ def plot_rates_vs_tenure(df, investment_amount, min_tenure=0, max_tenure=999):
     pair is plotted as a separate line.
 
     Parameters:
-    - df (pd.DataFrame): DataFrame containing the data to plot. Must include columns:
-                         'Tenure', 'Rate', 'Deposit lower bound', 'Deposit upper bound', 
-                         'Product provider', 'Product'.
-    - investment_amount (float): The investment amount to filter rows for the plot.
-    - min_tenure (int, optional): Minimum tenure (in months) to include. Default is 0.
-    - max_tenure (int or float, optional): Maximum tenure (in months) to include. Default is 999.
+        df (pd.DataFrame): DataFrame containing the data to plot. Must include columns:
+                            'Tenure', 'Rate', 'Deposit lower bound', 'Deposit upper bound', 
+                            'Product provider', 'Product'.
+        investment_amount (float): The investment amount to filter rows for the plot.
+        min_tenure (int, optional): Minimum tenure (in months) to include. Default is 0.
+        max_tenure (int or float, optional): Maximum tenure (in months) to include. Default is 999.
 
     Raises:
-    - ValueError: If no valid rows remain after filtering based on the investment amount and tenure.
+        ValueError: If no valid rows remain after filtering based on the investment amount and tenure.
     """
     # Filter rows by investment amount and tenure range
     filtered_df = df[
@@ -192,12 +192,12 @@ def plot_best_rates(combined_df, investment_amount, min_tenure=0, max_tenure=999
     available products. The plot color-codes the points by provider-product pair.
 
     Parameters:
-    - combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
-                                   'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
-    - investment_amount (float): The investment amount to filter available rates and products for that amount and
-                                 to calculate the total return.
-    - min_tenure (int, optional): The minimum tenure (in months) to consider. Default is 0.
-    - max_tenure (int, optional): The maximum tenure (in months) to consider. Default is 999.
+        combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
+                                    'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
+        investment_amount (float): The investment amount to filter available rates and products for that amount and
+                                    to calculate the total return.
+        min_tenure (int, optional): The minimum tenure (in months) to consider. Default is 0.
+        max_tenure (int, optional): The maximum tenure (in months) to consider. Default is 999.
     """
     # Get best rates DataFrame
     best_rates_df = best_rates(combined_df, investment_amount, min_tenure, max_tenure)
@@ -241,13 +241,13 @@ def plot_bank_offerings_with_fuzz(df, product_provider, fuzz_factor=0.02):
     Adds small fuzz to the points to avoid overlap.
 
     Parameters:
-    - df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
-                         'Deposit upper bound', 'Product provider'.
-    - product_provider (str): The bank name (Product provider) to filter the data for.
-    - fuzz_factor (float, optional): The amount of fuzz (random noise) to add to the points. Default is 0.02.
+        df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
+                            'Deposit upper bound', 'Product provider'.
+        product_provider (str): The bank name (Product provider) to filter the data for.
+        fuzz_factor (float, optional): The amount of fuzz (random noise) to add to the points. Default is 0.02.
 
     Raises:
-    - ValueError: If no data is available for the given product_provider.
+        ValueError: If no data is available for the given product_provider.
     """
     # Filter rows for the specified product provider
     filtered_df = df[df['Product provider'] == product_provider]
@@ -297,14 +297,18 @@ def best_mixed_strategy(df, investment_amount, tenure):
     the highest rate until the entire investment is allocated.
 
     Parameters:
-    - df (pd.DataFrame): DataFrame containing 'Tenure', 'Rate', 'Deposit lower bound', 
-                         'Deposit upper bound', 'Product provider', 'Product'.
-    - investment_amount (float): The total investment amount to allocate across different products.
-    - tenure (int): The tenure in months for the investment.
+        df (pd.DataFrame): DataFrame containing 'Tenure', 'Rate', 'Deposit lower bound', 
+                            'Deposit upper bound', 'Product provider', 'Product'.
+        investment_amount (float): The total investment amount to allocate across different products.
+        tenure (int): The tenure in months for the investment.
 
     Returns:
-    - pd.DataFrame: A DataFrame containing the investment allocation for each product,
-                    total expected dollar return, and annualized percentage return.
+        pd.DataFrame: A DataFrame containing:
+
+            - investment allocation for each product, 
+            - annualized percentage return for each product,
+            - expected dollar return for each product,
+            - the total investment, annualized percentage return, and expected dollar return of this strategy.
     """
     
     # Filter rows by the investment amount and the given tenure
@@ -379,11 +383,11 @@ def plot_best_mixed_strategy(df, investment_amount, min_tenure=0, max_tenure=999
     across all tenures available in the dataframe.
 
     Parameters:
-    - df (pd.DataFrame): DataFrame containing 'Tenure', 'Rate', 'Deposit lower bound', 
-                         'Deposit upper bound', 'Product provider', 'Product'.
-    - investment_amount (float): The total investment amount to allocate across different products.
-    - min_tenure (int, optional): The minimum tenure (in months) to include. Default is 0.
-    - max_tenure (int, optional): The maximum tenure (in months) to include. Default is 999.
+        df (pd.DataFrame): DataFrame containing 'Tenure', 'Rate', 'Deposit lower bound', 
+                            'Deposit upper bound', 'Product provider', 'Product'.
+        investment_amount (float): The total investment amount to allocate across different products.
+        min_tenure (int, optional): The minimum tenure (in months) to include. Default is 0.
+        max_tenure (int, optional): The maximum tenure (in months) to include. Default is 999.
     """
     # Extract all unique tenures from the dataframe and sort them
     tenures = sorted(df['Tenure'].unique())
@@ -418,11 +422,11 @@ def plot_pure_and_mixed_strategy_rates(df, investment_amount, min_tenure=0, max_
     Overlay plot for best rates (% p.a.) and effective mixed strategy rates for each tenure.
 
     Parameters:
-    - df (pd.DataFrame): DataFrame containing 'Tenure', 'Rate', 'Deposit lower bound', 
-                         'Deposit upper bound', 'Product provider', 'Product'.
-    - investment_amount (float): The investment amount to filter available rates and products.
-    - min_tenure (int, optional): The minimum tenure (in months) to include. Default is 0.
-    - max_tenure (int, optional): The maximum tenure (in months) to include. Default is 999.
+        df (pd.DataFrame): DataFrame containing 'Tenure', 'Rate', 'Deposit lower bound', 
+                            'Deposit upper bound', 'Product provider', 'Product'.
+        investment_amount (float): The investment amount to filter available rates and products.
+        min_tenure (int, optional): The minimum tenure (in months) to include. Default is 0.
+        max_tenure (int, optional): The maximum tenure (in months) to include. Default is 999.
     """
     # Get best rates DataFrame
     best_rates_df = best_rates(df, investment_amount, min_tenure, max_tenure)

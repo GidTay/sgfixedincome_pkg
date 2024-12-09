@@ -121,7 +121,7 @@ class MAS_bondsandbills_APIClient:
         
         Returns:
             dict: The most recent 6-month T-bill's record containing details such as 
-                issue code, auction date, cutoff yield etc.
+            issue code, auction date, cutoff yield etc.
         """
         # Prepare the API request parameters
         filters = (
@@ -171,7 +171,7 @@ class MAS_bondsandbills_APIClient:
         5 months. Hence, it should not be too different from the cut-off yield of this T-bill,
         unless there have been sudden unexpected changes in the macroeconomic environment.
 
-        Args:
+        Parameters:
             threshold (int): he threshold for the yield difference in basis points (default is 10).
 
         Returns:

@@ -15,7 +15,7 @@ def merge_dataframes(df_list):
 
     Returns:
         pd.DataFrame: A single DataFrame with all rows from the input DataFrames. Returns an empty DataFrame
-                      with the required columns if all input DataFrames are empty.
+        with the required columns if all input DataFrames are empty.
 
     Raises:
         TypeError: If the input is not a list or does not contain pandas DataFrames.
@@ -71,17 +71,21 @@ def create_banks_df(scrape_inputs):
 
     Parameters:
         scrape_inputs (list of tuples): Each tuple contains:
+
             - URL (str): The webpage to scrape.
             - Table class (str): The class of the table to locate.
             - Provider (str): The name of the bank/provider.
             - Required multiples (float or None, optional): Value to populate the "Required multiples" column. Defaults to None if omitted.
 
     Returns:
-        tuple:
+        tuple: A tuple containing:
+
             - pd.DataFrame: Combined DataFrame with all successfully scraped deposit rates.
+
             - list of dict: Each dict contains details of failed scrapes with:
-                - 'product' (str): Name of the provider and product that failed (e.g. DBS bank fixed deposit)
-                - 'error' (str): Error message describing the failure.
+
+                - product (str): Name of the provider and product that failed (e.g. DBS bank fixed deposit)
+                - error (str): Error message describing the failure.
 
     Raises:
         ValueError: If the input is not a list of tuples with the expected structure.
@@ -125,7 +129,7 @@ def add_ssb_details(df, current_ssb_holdings, issue_code):
     """
     Add additional details to the DataFrame with SSB tenure and rate data.
 
-    Args:
+    Parameters:
         df (pd.DataFrame): DataFrame with SSB tenure month and rates.
         current_ssb_holdings (float): Current SSB holdings in Singapore dollars.
         issue_code (str): The SSB's issue code.
@@ -148,7 +152,7 @@ def create_ssb_df(client, current_ssb_holdings=0.0):
     """
     Create a dataframe containing the details and rates for the latest Singapore Savings Bond (SSB).
 
-    Args:
+    Parameters:
         client: An initialized instance of the MAS_bondsandbills_APIClient.
         current_ssb_holdings (float, optional): The amount of SSBs you currently hold in Singapore dollars. Defaults to 0.0.
 
@@ -173,30 +177,30 @@ def create_tbill_df(tbill_details):
     """
     Create a pandas DataFrame with details about a T-bill.
 
-    Args:
-        tbill_details (dict): A dictionary containing details about a T-bill.
-            Expected keys include:
-            - "cutoff_yield" (float): The cutoff yield rate of the T-bill.
-            - "issue_code" (str): The unique identifier of the T-bill.
-            - "auction_tenor" (float): Specifies if it is a 6-month (0.5) or 12-month (1.0) T-bill.
+    Parameters:
+        tbill_details (dict): A dictionary containing details about a T-bill. Expected keys include: 
+        
+            - cutoff_yield (float): in percentage.
+            - issue_code (str): identifies the T-bill.
+            - auction_tenor (float): specifies if it is a 6-month (0.5) or 12-month (1.0) T-bill.
 
     Returns:
         pd.DataFrame: A DataFrame with the following columns:
-            - "Tenure" (int): The tenure of the T-bill in months.
-            - "Rate" (float): The cutoff yield of the T-bill.
-            - "Deposit lower bound" (int): The minimum investment amount (fixed at 1000).
-            - "Deposit upper bound" (int): The maximum investment amount (fixed at 99999999).
-            - "Required multiples" (int): The required investment increments (fixed at 1000).
-            - "Product provider" (str): The provider of the product (fixed as "MAS").
-            - "Product" (str): A description of the T-bill, including its issue code.
+
+            - Tenure (int): The tenure of the T-bill in months.
+            - Rate (float): The cutoff yield of the T-bill.
+            - Deposit lower bound (int): The minimum investment amount (fixed at 1000).
+            - Deposit upper bound (int): The maximum investment amount (fixed at 99999999).
+            - Required multiples (int): The required investment increments (fixed at 1000).
+            - Product provider (str): The provider of the product (fixed as "MAS").
+            - Product (str): A description of the T-bill, including its issue code.
 
     Example:
-        tbill_details = {
-            "cutoff_yield": 3.08,
-            "issue_code": "BS24123F",
-            "auction_tenor": 0.5
-        }
-        df = create_tbill_df(tbill_details)
+        >>> tbill_details = {"cutoff_yield": 3.08, "issue_code": "BS24123F", "auction_tenor": 0.5}
+        >>> df = create_tbill_df(tbill_details)
+        >>> df
+           Tenure  Rate  Deposit lower bound  Deposit upper bound  Required multiples Product provider          Product
+        0       6  3.08                 1000             99999999                1000              MAS  T-bill BS24123F
     """
     # Convert auction_tenor to tenure in months
     tenure_mapping = {
@@ -246,10 +250,11 @@ def create_combined_df(
 
     Parameters:
         scrape_inputs (list of tuples, optional): Input parameters for scraping bank data. Each tuple contains:
-            - str: URL of the bank's fixed deposit rate page.
-            - str: HTML class or identifier for locating the table.
-            - str: Bank name.
-            - float or None (optional): Required multiples for investment. Defaults to None if omitted.
+
+            - URL (str): The webpage to scrape.
+            - Table class (str): The class of the table to locate.
+            - Provider (str): The name of the bank/provider.
+            - Required multiples (float or None, optional): Value to populate the "Required multiples" column. Defaults to None if omitted.
             Default value includes DBS, UOB, and OCBC bank details.
         
         current_ssb_holdings (float, optional): The amount of SSBs you currently hold in Singapore dollars. Defaults to 0.0.
@@ -259,12 +264,15 @@ def create_combined_df(
 
 
     Returns:
-        tuple:
-            - pd.DataFrame: Combined DataFrame containing data from banks, SSBs, and T-bills. If any 
-                            data source fails, an empty DataFrame is included in the merge.
-            - list of dict: List of fetch failures, where each entry is a dictionary with keys:
-                            - 'product': The data provider and product that failed (e.g., 'MAS SSB', 'MAS T-bill').
-                            - 'error': The error message describing the failure.
+        tuple: A tuple containing:
+
+            - pd.DataFrame: Combined DataFrame containing data from banks, SSBs, and T-bills.
+            
+            - list of dict: List of fetch failures, where each entry is a dictionary with two keys:
+                
+                - product: the product-provider pair (e.g., 'MAS SSB', 'MAS T-bill') 
+                - error: the error message.
+            
             - list of str: List of warning messages generated during the process.
     """
     fetch_failures = [] # Initialize a list to store fetch failures

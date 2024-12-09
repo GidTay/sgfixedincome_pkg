@@ -95,9 +95,8 @@ def parse_bounds(deposit_range):
         deposit_range (str): String representing the deposit range 
 
     Returns:
-        tuple: A tuple containing the lower and upper bounds as floats. 
-               If only upper bound exists, lower bound is set to 0.
-               I fonly the lower bound exists, upper bound is set to 99,999,999.
+        tuple: A tuple containing the lower and upper bounds as floats. If only upper bound exists, 
+        lower bound is set to 0. If only the lower bound exists, upper bound is set to 99,999,999.
 
     Raises:
         ValueError: If the range cannot be parsed, if the lower bound is greater than the upper bound,
@@ -233,10 +232,10 @@ def clean_rate_value(rate_value):
     Raises:
         ValueError: If the rate value cannot be converted to a float and isn't a valid 'N.A.' string.
     
-    Example:
-        clean_rate_value("5%") -> 5.0
-        clean_rate_value("N.A.") -> None
-        clean_rate_value("3.5") -> 3.5
+    Examples:
+        - clean_rate_value("5%") -> 5.0
+        - clean_rate_value("N.A.") -> None
+        - clean_rate_value("3.5") -> 3.5
     """
     if isinstance(rate_value, str):
         rate_value = rate_value.strip().replace('%', '') # Remove '%' sign if present
@@ -257,15 +256,16 @@ def reshape_table(raw_df):
 
     Parameters:
         raw_df (pd.DataFrame): The raw DataFrame containing fixed deposit rate data.
-            - The first column contains tenure in months (e.g., 'Period', 'Tenor', or 'Tenure').
-            - The other columns contain rates for different deposit ranges (e.g., "$1,000-$9,999").
+            The first column contains tenure in months (e.g., 'Period', 'Tenor', or 'Tenure').
+            The other columns contain rates for different deposit ranges (e.g., '$1,000-$9,999').
 
     Returns:
         pd.DataFrame: A reshaped DataFrame with the following columns:
-            - 'Tenure': The duration in months (as float).
-            - 'Rate': The deposit rates (as float).
-            - 'Deposit lower bound': The lower bound of the deposit range (as float).
-            - 'Deposit upper bound': The upper bound of the deposit range (as float, or None if not specified).
+
+            - Tenure: The duration in months (as float).
+            - Rate: The deposit rates (as float).
+            - Deposit lower bound: The lower bound of the deposit range (as float).
+            - Deposit upper bound: The upper bound of the deposit range (as float, or None if not specified).
     
     Raises:
         ValueError: If the first column does not contain keywords indicating tenure information.
@@ -317,9 +317,10 @@ def scrape_deposit_rates(url, table_class, provider, req_multiples=None):
 
     Returns:
         pd.DataFrame: A pandas DataFrame containing the reshaped deposit rates data, with additional columns:
-            - "Required multiples": The value provided in `req_multiples`.
-            - "Product provider": The value provided in `provider`.
-            - "Product": A static string "Fixed Deposit" indicating the type of product.
+
+            - Required multiples: The value provided in `req_multiples`.
+            - Product provider: The value provided in `provider`.
+            - Product: A static string "Fixed Deposit" indicating the type of product.
     
     Raises:
         Exception: If the scraping or data extraction process fails, an exception will be raised.
