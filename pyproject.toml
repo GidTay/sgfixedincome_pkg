@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "sgfixedincome_pkg"
+version = "0.1.0"
+description = "A package to aggregate fixed income products available to Singapore residents to earn yield on singapore dollars"
+authors = ["Gideon Tay"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.32.3"
+beautifulsoup4 = "^4.12.3"
+pandas = "^2.2.3"
+
+[tool.poetry.dev-dependencies]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-cov = "^6.0.0"
+pytest-mock = "^3.14.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
