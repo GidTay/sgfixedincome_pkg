@@ -176,10 +176,10 @@ def products(combined_df):
         list: A list of unique product combinations in the format 'Product provider - Product'.
     """
     # Combine 'Product provider' and 'Product' into a single string for each row
-    combined_df['Product Combination'] = combined_df['Product provider'] + ' - ' + combined_df['Product']
+    product_combinations = combined_df['Product provider'] + ' - ' + combined_df['Product']
     
     # Get the unique combinations and return them as a list
-    unique_products = combined_df['Product Combination'].unique().tolist()
+    unique_products = product_combinations.unique().tolist()
 
     return unique_products
 
@@ -306,19 +306,19 @@ def plot_bank_offerings_with_fuzz(df, product_provider, fuzz_factor=0.02):
     Raises:
         ValueError: If no data is available for the given product_provider.
     """
-    # Filter rows for the specified product provider
-    filtered_df = df[df['Product provider'] == product_provider]
+    # Filter rows for the specified product provider and create a copy
+    filtered_df = df[df['Product provider'] == product_provider].copy()
 
     # Raise an exception if no valid rows remain after filtering
     if filtered_df.empty:
         raise ValueError(f"No data available for the product provider {product_provider}.")
 
-    # Create a unique identifier for each deposit range (Deposit lower bound - Deposit upper bound)
-    filtered_df['Deposit Range'] = filtered_df['Deposit lower bound'].astype(str) + '-' + filtered_df['Deposit upper bound'].astype(str)
-
-    # Adding small random fuzz to the 'Tenure' and 'Rate' columns
-    filtered_df['Tenure (fuzzed)'] = filtered_df['Tenure'] + np.random.uniform(-fuzz_factor, fuzz_factor, len(filtered_df))
-    filtered_df['Rate (fuzzed)'] = filtered_df['Rate'] + np.random.uniform(-fuzz_factor, fuzz_factor, len(filtered_df))
+    # Create a unique identifier for each deposit range and add small random fuzz
+    filtered_df = filtered_df.assign(
+        Deposit_Range=filtered_df['Deposit lower bound'].astype(str) + '-' + filtered_df['Deposit upper bound'].astype(str),
+        Tenure_fuzzed=filtered_df['Tenure'] + np.random.uniform(-fuzz_factor, fuzz_factor, len(filtered_df)),
+        Rate_fuzzed=filtered_df['Rate'] + np.random.uniform(-fuzz_factor, fuzz_factor, len(filtered_df))
+    )
 
     # Plotting
     plt.figure(figsize=(12, 8))
@@ -326,10 +326,10 @@ def plot_bank_offerings_with_fuzz(df, product_provider, fuzz_factor=0.02):
     # Plot a separate line for each deposit range
     sns.lineplot(
         data=filtered_df,
-        x='Tenure (fuzzed)',
-        y='Rate (fuzzed)',
-        hue='Deposit Range',
-        style='Deposit Range',
+        x='Tenure_fuzzed',
+        y='Rate_fuzzed',
+        hue='Deposit_Range',
+        style='Deposit_Range',
         markers=True,
         dashes=False,
         palette='tab10'
