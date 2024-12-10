@@ -1,6 +1,8 @@
 import requests
 import pandas as pd
 import warnings
+from datetime import datetime
+import pytz
 from sgfixedincome_pkg import equations
 
 class MAS_bondsandbills_APIClient:
@@ -38,6 +40,19 @@ class MAS_bondsandbills_APIClient:
         response.raise_for_status()
         return response.json()
 
+    def get_latest_ssb_details(self):
+        """
+        Get details of the latest Singapore Savings Bond (SSB).
+
+        Returns:
+            dict: details of the latest SSB bond.
+        """
+        response = self.fetch_data(
+            "listsavingbonds", 
+            params={"rows": 1, "sort": "issue_date desc"}
+            )
+        return response["result"]["records"][0]
+    
     def get_latest_ssb_issue_code(self):
         """
         Get the latest Singapore Savings Bond (SSB) issue code.
@@ -45,11 +60,18 @@ class MAS_bondsandbills_APIClient:
         Returns:
             str: The issue code of the latest bond.
         """
-        response = self.fetch_data(
-            "listsavingbonds", 
-            params={"rows": 1, "sort": "issue_date desc"}
-            )
-        return response["result"]["records"][0]["issue_code"]
+        response = self.get_latest_ssb_details()
+        return response["issue_code"]
+    
+    def get_latest_ssb_last_day_to_apply(self):
+        """
+        Get the latest Singapore Savings Bond's (SSB) last day to apply.
+
+        Returns:
+            str: The last day to apply to the latest SSB bond.
+        """
+        response = self.get_latest_ssb_details()
+        return response["last_day_to_apply"]
 
     def get_ssb_interest(self, issue_code):
         """
@@ -175,22 +197,61 @@ class MAS_bondsandbills_APIClient:
             threshold (int): he threshold for the yield difference in basis points (default is 10).
 
         Returns:
-            None: This function only issues a warning if the yield difference exceeds the threshold.
+            None: This function only issues a warning if the yield difference exceeds the threshold
+            or if we fail to sucessfully check if the yield difference exceeds the threshold.
         """
         # Fetch the most recent 6-month T-bill bid yield
-        bid_yield = self.get_6m_tbill_bid_yield()
+        try:
+            bid_yield = self.get_6m_tbill_bid_yield()
 
-        # Fetch the most recent 6-month T-bill cutoff yield
-        tbill_details = self.get_most_recent_6m_tbill()
-        cutoff_yield = tbill_details["cutoff_yield"]
+            # Fetch the most recent 6-month T-bill cutoff yield
+            tbill_details = self.get_most_recent_6m_tbill()
+            cutoff_yield = tbill_details["cutoff_yield"]
+            
+            # Issue a warning if yield difference exceeds threshold
+            yield_difference = abs(bid_yield - cutoff_yield) * 100  # In basis points
+            if yield_difference >= threshold:
+                warning_message = (
+                    f"The difference between the bid yield and the cutoff yield is large "
+                    f"({yield_difference} bps). "
+                    "The previous 6-month T-bill's cutoff yield may not be a good estimate "
+                    "of the upcoming cutoff-yield."
+                )
+                warnings.warn(warning_message)
+
+        except Exception as e:
+            warnings.warn(f"Failed to check for sudden T-bill yield changes: {str(e)}")
+    
+    def past_last_day_to_apply_ssb_warning(self):
+        """
+        Checks if the current date (in Singapore time) is past 23:59 on the last day to apply for the latest SSB.
+        If it is, issues a warning. 
         
-        # Issue a warning if yield difference exceeds threshold
-        yield_difference = abs(bid_yield - cutoff_yield) * 100  # In basis points
-        if yield_difference >= threshold:
-            warning_message = (
-                f"The difference between the bid yield and the cutoff yield is large "
-                f"({yield_difference} bps). "
-                "The previous 6-month T-bill's cutoff yield may not be a good estimate "
-                "of the upcoming cutoff-yield."
-            )
-            warnings.warn(warning_message)
+        In that case, users are unable to invest into the SSB in the dataset. However, the data is nevertheless useful
+        as a benchmark for the next SSB's rates. Hence, we still allow it to be in the dataset. This warning is unlikely
+        to be triggered, since details on the next SSB is often provided promptly within day(s) of the prior SSB's last 
+        day of application.
+
+        Returns:
+            None: The function only issues a warning if the current date is past the application deadline or if we fail
+            to successfully check if the current date is past the application deadline.
+        """
+        try:
+            # Get the last day to apply for the latest SSB and convert to datetime object in SGT
+            last_day_str = self.get_latest_ssb_last_day_to_apply()
+            singapore_tz = pytz.timezone("Asia/Singapore")
+            last_day = singapore_tz.localize(datetime.strptime(last_day_str, '%Y-%m-%d'))
+            last_day_end = last_day.replace(hour=23, minute=59, second=59) # Add time 23:59:59
+
+            # Get the current date and time in Singapore timezone
+            current_datetime = datetime.now(tz=singapore_tz)
+
+            # Check if the current date is past 23:59 on the last day to apply
+            if current_datetime > last_day_end:
+                warnings.warn(
+                    f"The last day to apply for the latest SSB ({last_day.strftime('%Y-%m-%d')}) has passed. "
+                    "You may not be able to apply for this SSB."
+                )
+
+        except Exception as e:
+            warnings.warn(f"Failed to check if the last day to apply for SSB has passed: {str(e)}")

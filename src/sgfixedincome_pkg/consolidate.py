@@ -286,6 +286,12 @@ def create_combined_df(
     # Create dataframe with SSB data from MAS API
     try:
         SSB_df = create_ssb_df(client, current_ssb_holdings)
+
+        # Run past_last_day_to_apply_ssb_warning
+        try:
+            client.past_last_day_to_apply_ssb_warning()
+        except Warning as warning:
+            warnings_list.append(str(warning))
     except Exception as e:
         SSB_df = pd.DataFrame()  # Empty dataframe for SSB
         fetch_failures.append({'product': 'MAS SSB', 'error': str(e)})
@@ -300,10 +306,6 @@ def create_combined_df(
             client.sudden_6m_tbill_yield_change_warning(threshold=tbill_threshold)
         except Warning as warning:
             warnings_list.append(str(warning))
-        except Exception as e:
-            warnings_list.append(
-                f"Could not check for sudden T-bill yield changes: {str(e)}"
-            )
     except Exception as e:
         tbill_df = pd.DataFrame()  # Empty dataframe for T-bills
         fetch_failures.append({'product': 'MAS T-bill', 'error': str(e)})
