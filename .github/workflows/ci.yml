@@ -22,6 +22,12 @@ jobs:
 
       - name: Install package
         run: poetry install
+      
+      # Install Jupyter and register the kernel
+      - name: Install Jupyter and register kernel
+        run: |
+          poetry run pip install jupyter
+          poetry run python -m ipykernel install --user --name=sgfixedincome_pkg
 
       - name: Test with pytest
         run: poetry run pytest tests/ --cov=sgfixedincome_pkg --cov-report=xml
