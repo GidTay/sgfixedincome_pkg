@@ -5,7 +5,8 @@
 :maxdepth: 1
 :hidden:
 
-example.ipynb
+vignettes/vignette_main.ipynb
+vignettes/vignette_mas.ipynb
 changelog.md
 contributing.md
 conduct.md

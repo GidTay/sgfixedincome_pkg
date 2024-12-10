@@ -19,13 +19,14 @@ You can install this package using:
 $ pip install sgfixedincome_pkg
 ```
 
-## Documentation
+## Documentation and Usage
 
 Detailed documentation can be found on Read the Docs.
 
-## Usage
+You can also explore detailed vignettes demonstrating the package's functionality:
 
-You can explore a detailed vignette demonstrating the package's functionality [here](docs/vignette.ipynb).
+- [Main vignette](docs/vignettes/vignette_main.ipynb): fetch, analyze, and visualize retail fixed income product data.
+- [MAS vignette](docs/vignettes/vignette_mas.ipynb): how to use the MAS bonds and bills API client and related functions
 
 ## Contributing
 
