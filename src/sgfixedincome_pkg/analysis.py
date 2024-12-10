@@ -4,49 +4,6 @@ import numpy as np
 import pandas as pd
 from sgfixedincome_pkg import equations
 
-
-def best_rates(combined_df, investment_amount, min_tenure=0, max_tenure=999):
-    """
-    Calculate the best yield and total return for each possible tenure,
-    considering that the offered rates and available products differ across 
-    invested amounts.
-
-    Parameters:
-        combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
-                                    'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
-        investment_amount (float): The investment amount to filter available rates and products for that amount and
-                                   to calculate the total return.
-        min_tenure (int, optional): The minimum tenure (in months) to consider. Default is 0.
-        max_tenure (int, optional): The maximum tenure (in months) to consider. Default is 999.
-
-    Returns:
-        pd.DataFrame: A DataFrame with the best rate (in % p.a.) and total return (in dollars) for each tenure.
-    """
-    # Filter rows where the investment_amount and Tenure is within the allowed bounds
-    valid_inv_df = combined_df[
-        (combined_df['Deposit lower bound'] <= investment_amount) & 
-        (combined_df['Deposit upper bound'] >= investment_amount) &
-        (combined_df['Tenure'] >= min_tenure) & 
-        (combined_df['Tenure'] <= max_tenure)
-    ]
-    
-    # If no valid rows remain after filtering, raise an exception
-    if valid_inv_df.empty:
-        raise ValueError(f"Cannot find valid products for an investment amount of {investment_amount}.")
-
-    # Calculate the total dollar return for each row
-    valid_inv_df['Total Dollar Return'] = equations.calculate_dollar_return(
-        investment_amount, 
-        valid_inv_df['Rate'], 
-        valid_inv_df['Tenure']
-        )
-
-    # Group by tenure and get the row with the maximum total return for each tenure
-    best_rates_df = valid_inv_df.loc[valid_inv_df.groupby('Tenure')['Total Dollar Return'].idxmax()]
-    best_rates_df = best_rates_df.sort_values(by='Tenure') # Sort by tenure
-
-    return best_rates_df.reset_index(drop=True)
-
 def filter_df(combined_df, investment_amount=None, min_tenure=0, max_tenure=999, 
               min_rate=None, consider_tbills=True, consider_ssbs=True, consider_fd=True, 
               include_providers=None, exclude_providers=None):
@@ -107,6 +64,106 @@ def filter_df(combined_df, investment_amount=None, min_tenure=0, max_tenure=999,
     
     return filtered_df.reset_index(drop=True)
 
+def best_returns(combined_df, investment_amount, min_tenure=0, max_tenure=999):
+    """
+    Calculate the highest total dollar return achievable for each possible tenure,
+    considering that the offered rates and available products differ across invested amounts. 
+
+    This function assumes you only can select one product to invest in, and finds the highest dollar return
+    attainable for each tenure. For products which only accept investment in specific multiples, we allocate the
+    maximum amount of investment to them given the investment amount, and assume the remaining cash earns no return.
+    
+    As such, for each tenure, the product delivering the best return (our concern here) may differ from the product 
+    with the highest rates. For example, product 'A' with a higher rate but which has required multiples of investment
+    may produce lower total dollar return compared to product 'B' with a lower rate but no required multiples, as the 
+    full amount of cash cannot be invested in product 'A' but can be fully invested into product 'B'.
+
+    Parameters:
+        combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
+                                    'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
+        investment_amount (float): The investment amount to filter available rates and products for that amount.
+        min_tenure (int, optional): The minimum tenure (in months) to consider. Default is 0.
+        max_tenure (int, optional): The maximum tenure (in months) to consider. Default is 999.
+
+    Returns:
+        pd.DataFrame: A DataFrame with products that deliver the highest dollar return for each tenure, 
+        product details, and total dollar return from the investment.
+    """
+    # Filter rows where the investment_amount and Tenure is within the allowed bounds
+    valid_inv_df = filter_df(
+        combined_df,
+        investment_amount=investment_amount, 
+        min_tenure=min_tenure, 
+        max_tenure=max_tenure
+        ).copy()
+    
+    # If no valid rows remain after filtering, raise an exception
+    if valid_inv_df.empty:
+        raise ValueError(f"Cannot find valid products for an investment amount of {investment_amount}.")
+    
+    # Calculate the maximum investable amount based on required multiples
+    def calculate_invested_amount(row):
+        if pd.isna(row['Required multiples']):
+            return investment_amount  # No multiples restriction, use the entire amount
+        max_multiple = investment_amount // row['Required multiples']
+        return max_multiple * row['Required multiples']  # Maximum valid investable amount
+    
+    valid_inv_df['Invested amount'] = valid_inv_df.apply(
+        calculate_invested_amount, axis=1
+        )
+
+    # Calculate the total dollar return for each row using the 'Invested amount'
+    valid_inv_df.loc[:, 'Total Dollar Return'] = valid_inv_df.apply(
+        lambda row: equations.calculate_dollar_return(
+            row['Invested amount'],
+            row['Rate'],
+            row['Tenure']
+        ),
+        axis=1
+    )
+
+    # Group by tenure and get the row with the maximum total return for each tenure
+    best_returns_df = valid_inv_df.loc[
+        valid_inv_df.groupby('Tenure')['Total Dollar Return'].idxmax()
+        ]
+    best_returns_df.sort_values(by='Tenure', inplace=True) # Sort by tenure
+
+    return best_returns_df.reset_index(drop=True)
+
+def best_rates(combined_df, investment_amount, min_tenure=0, max_tenure=999):
+    """
+    Display the highest rates offered for each possible tenure given an investment amount.
+
+    Parameters:
+        combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
+                                    'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
+        investment_amount (float): The investment amount to filter available rates and products for that amount.
+        min_tenure (int, optional): The minimum tenure (in months) to consider. Default is 0.
+        max_tenure (int, optional): The maximum tenure (in months) to consider. Default is 999.
+
+    Returns:
+        pd.DataFrame: A DataFrame with the products offering the best rate (in % p.a.) for each tenure.
+    """
+    # Filter rows where the investment_amount and Tenure is within the allowed bounds
+    valid_inv_df = filter_df(
+        combined_df,
+        investment_amount=investment_amount, 
+        min_tenure=min_tenure, 
+        max_tenure=max_tenure
+        ).copy()
+    
+    # If no valid rows remain after filtering, raise an exception
+    if valid_inv_df.empty:
+        raise ValueError(f"Cannot find valid products for an investment amount of {investment_amount}.")
+
+    # Group by tenure and get the row with the highest rate for each tenure
+    best_rates_df = valid_inv_df.loc[
+        valid_inv_df.groupby('Tenure')['Rate'].idxmax()
+        ]
+    best_rates_df.sort_values(by='Tenure', inplace=True) # Sort by tenure
+
+    return best_rates_df.reset_index(drop=True)
+
 def products(combined_df):
     """
     Returns a list of unique products in the dataset by joining the 'Product provider' and 'Product' columns.
@@ -144,12 +201,12 @@ def plot_rates_vs_tenure(df, investment_amount, min_tenure=0, max_tenure=999):
         ValueError: If no valid rows remain after filtering based on the investment amount and tenure.
     """
     # Filter rows by investment amount and tenure range
-    filtered_df = df[
-        (df['Deposit lower bound'] <= investment_amount) &
-        (df['Deposit upper bound'] >= investment_amount) &
-        (df['Tenure'] >= min_tenure) &
-        (df['Tenure'] <= max_tenure)
-    ]
+    filtered_df = filter_df(
+        df,
+        investment_amount=investment_amount, 
+        min_tenure=min_tenure, 
+        max_tenure=max_tenure
+        ).copy()
 
     # Raise an exception if no valid rows remain
     if filtered_df.empty:
@@ -186,21 +243,21 @@ def plot_rates_vs_tenure(df, investment_amount, min_tenure=0, max_tenure=999):
     # Show the plot
     plt.show()
 
-def plot_best_rates(combined_df, investment_amount, min_tenure=0, max_tenure=999):
+def plot_best_rates(df, investment_amount, min_tenure=0, max_tenure=999):
     """
     Plot of best rates (% p.a.) for each tenure for a given investment amount, across
     available products. The plot color-codes the points by provider-product pair.
 
     Parameters:
-        combined_df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
-                                    'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
+        df (pd.DataFrame): DataFrame containing columns 'Tenure', 'Rate', 'Deposit lower bound', 
+                           'Deposit upper bound', 'Required multiples', 'Product provider', 'Product'.
         investment_amount (float): The investment amount to filter available rates and products for that amount and
                                     to calculate the total return.
         min_tenure (int, optional): The minimum tenure (in months) to consider. Default is 0.
         max_tenure (int, optional): The maximum tenure (in months) to consider. Default is 999.
     """
     # Get best rates DataFrame
-    best_rates_df = best_rates(combined_df, investment_amount, min_tenure, max_tenure)
+    best_rates_df = best_rates(df, investment_amount, min_tenure, max_tenure)
     
     # Combine 'Product provider' and 'Product' for unique identification
     best_rates_df['Provider-Product'] = best_rates_df['Product provider'] + " - " + best_rates_df['Product']
