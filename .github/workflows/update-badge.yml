@@ -1,0 +1,40 @@
+name: Update Badge
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  update-badge:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Generate coverage badge
+        run: |
+          COVERAGE=$(poetry run python -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage.xml'); root = tree.getroot(); print(root.attrib['line-rate'])")
+          COVERAGE_PERCENT=$(awk "BEGIN {print $COVERAGE * 100}")
+          echo $COVERAGE_PERCENT
+          echo $COVERAGE_PERCENT > coverage.txt
+          echo "coverage=$COVERAGE_PERCENT" >> $GITHUB_ENV
+          node -e "fs.writeFileSync('badge.json', JSON.stringify({ schemaVersion: 1, label: 'coverage', message: '${COVERAGE_PERCENT}%', color: 'brightgreen' }, null, 2))"
+
+      - name: Commit badge
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: "badge.json"
+          message: "Update coverage badge"
+          push: true
