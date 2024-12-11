@@ -1,5 +1,7 @@
 # sgfixedincome_pkg
 
+![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/GidTay/sgfixedincome_pkg/main/badge.json)
+
 A python package to aggregate and analyse data on SGD-denominated retail fixed income products in Singapore.
 
 ## Introduction

@@ -37,5 +37,32 @@ jobs:
         with:
           files: ./coverage.xml # coverage report
 
+      - name: Generate coverage badge data
+        id: coverage
+        run: |
+          COVERAGE=$(poetry run python -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage.xml'); root = tree.getroot(); print(root.attrib['line-rate'])")
+          echo "coverage=$(awk "BEGIN {print $COVERAGE * 100}")" >> $GITHUB_ENV
+  
+      - name: Update Shields.io badge
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const badge = {
+              schemaVersion: 1,
+              label: 'coverage',
+              message: `${process.env.coverage}%`,
+              color: 'brightgreen'
+            };
+            fs.writeFileSync('badge.json', JSON.stringify(badge, null, 2));
+            console.log('Badge generated:', badge);
+  
+      - name: Commit badge
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: badge.json
+          message: "Update coverage badge"
+          push: true
+
       - name: Build documentation
         run: poetry run make html --directory docs/
