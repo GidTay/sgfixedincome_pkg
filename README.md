@@ -25,8 +25,9 @@ Detailed documentation can be found on Read the Docs.
 
 You can also explore detailed vignettes demonstrating the package's functionality:
 
-- [Main vignette](vignettes/vignette_main.ipynb): fetch, analyze, and visualize retail fixed income product data.
-- [MAS vignette](vignettes/vignette_mas.ipynb): how to use the MAS bonds and bills API client and related functions
+- [Main vignette](docs/vignettes/vignette_main.ipynb): fetch, analyze, and visualize retail fixed income product data.
+- [MAS vignette](docs/vignettes/vignette_mas.ipynb): how to use the MAS bonds and bills API client and related functions
+- [Scraper vignette](docs/vignettes/vignette_scraper.ipynb): how to use functions that scrape bank fixed deposit websites
 
 ## Contributing
 
