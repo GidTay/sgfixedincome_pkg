@@ -2,6 +2,7 @@ from sgfixedincome_pkg import mas_api_client
 import pytest
 import pandas as pd
 from unittest.mock import patch, MagicMock
+import warnings
 
 def test_initialization():
     """
@@ -203,7 +204,6 @@ def test_calculate_ssb_tenure_rates_invalid(coupons):
     with pytest.raises(ValueError):
         client.calculate_ssb_tenure_rates(coupons)
 
-
 @patch.object(mas_api_client.MAS_bondsandbills_APIClient, "fetch_data")
 def test_get_most_recent_6m_tbill(mock_fetch_data):
     """
@@ -250,3 +250,58 @@ def test_get_6m_tbill_bid_yield(mock_fetch_data):
     }
     bid_yield = client.get_6m_tbill_bid_yield()
     assert bid_yield == 3.01
+
+import pytest
+from unittest.mock import patch, MagicMock
+
+@pytest.mark.parametrize(
+    "bid_yield, cutoff_yield, threshold, expected_warning",
+    [
+        # No warning scenarios
+        (3.50, 3.52, 10, False),   # Within threshold (2bps difference)
+        (3.35, 3.50, 20, False),   # Within larger threshold
+        (3.45, 3.55, 10, False),   # Exactly at threshold
+        
+        # Warning scenarios
+        (3.50, 3.65, 10, True),    # Above threshold (positive difference)
+        (3.65, 3.50, 10, True),    # Above threshold (negative difference)
+        (3.30, 3.50, 15, True)     # Exceeds larger threshold
+    ],
+)
+@patch("warnings.warn")
+@patch.object(mas_api_client.MAS_bondsandbills_APIClient, "get_6m_tbill_bid_yield")
+@patch.object(mas_api_client.MAS_bondsandbills_APIClient, "get_most_recent_6m_tbill")
+def test_sudden_6m_tbill_yield_change_warning(
+    mock_get_most_recent_6m_tbill, mock_get_6m_tbill_bid_yield, 
+    mock_warn, bid_yield, cutoff_yield, threshold, expected_warning
+):
+    """
+    Parameterized test for sudden T-bill yield change warning.
+    
+    Args:
+        mock_get_most_recent_6m_tbill: 
+        mock_get_6m_tbill_bid_yield:
+        mock_warn:
+        bid_yield: Simulated bid yield
+        cutoff_yield: Simulated cutoff yield
+        threshold: Threshold for yield difference
+        expect_warning: Whether a warning is expected
+    """
+    # Mocking the client methods
+    client = mas_api_client.MAS_bondsandbills_APIClient()
+    mock_get_6m_tbill_bid_yield.return_value = bid_yield
+    mock_get_most_recent_6m_tbill.return_value = {"cutoff_yield": cutoff_yield}
+
+    # Call the method
+    client.sudden_6m_tbill_yield_change_warning(threshold=threshold)
+
+    # Assert if warnings.warn was called correctly
+    if expected_warning:
+        # Check if any call contains the relevant part of the warning
+        assert any(
+            "The difference between the bid yield and the cutoff yield is large"
+            in str(call.args[0])
+            for call in mock_warn.call_args_list
+        ), "Expected warning not found in warnings.warn calls"
+    else:
+        mock_warn.assert_not_called()

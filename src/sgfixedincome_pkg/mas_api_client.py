@@ -250,7 +250,7 @@ class MAS_bondsandbills_APIClient:
             
             # Issue a warning if yield difference exceeds threshold
             yield_difference = abs(bid_yield - cutoff_yield) * 100  # In basis points
-            if yield_difference >= threshold:
+            if yield_difference > threshold:
                 warning_message = (
                     f"The difference between the bid yield and the cutoff yield is large "
                     f"({yield_difference} bps). "
