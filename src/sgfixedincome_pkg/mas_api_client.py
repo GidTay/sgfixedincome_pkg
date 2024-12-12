@@ -34,7 +34,7 @@ class MAS_bondsandbills_APIClient:
 
         Raises:
             requests.HTTPError: If the request fails.
-        """
+        """        
         url = self.base_url + endpoint
         response = requests.get(url, params=params)
         response.raise_for_status()
@@ -46,11 +46,18 @@ class MAS_bondsandbills_APIClient:
 
         Returns:
             dict: details of the latest SSB bond.
+        
+        Raises:
+            Exception: If API request fails to fetch latest SSB data.
         """
-        response = self.fetch_data(
-            "listsavingbonds", 
-            params={"rows": 1, "sort": "issue_date desc"}
-            )
+        try:
+            response = self.fetch_data(
+                "listsavingbonds", 
+                params={"rows": 1, "sort": "issue_date desc"}
+                )
+        except Exception as e:
+            raise Exception(f"Failed to fetch latest SSB data: {e}")
+
         return response["result"]["records"][0]
     
     def get_latest_ssb_issue_code(self):
@@ -82,11 +89,18 @@ class MAS_bondsandbills_APIClient:
 
         Returns:
             dict: Interest details for the bond.
+        
+        Raises:
+            Exception: If API request fails to fetch SSB rates and returns data.
         """
-        response = self.fetch_data(
-            "savingbondsinterest",
-            params={"rows": 1, "filters": f"issue_code:{issue_code}"}
-        )
+        try:
+            response = self.fetch_data(
+                "savingbondsinterest",
+                params={"rows": 1, "filters": f"issue_code:{issue_code}"}
+            )
+        except Exception as e:
+            raise Exception(f"Failed to fetch SSB rates and returns data: {e}")
+    
         return response["result"]["records"][0]
     
     def get_ssb_coupons(self, issue_code):
@@ -113,9 +127,21 @@ class MAS_bondsandbills_APIClient:
 
         Returns:
             pd.DataFrame: DataFrame containing tenure and corresponding annual rates.
+        
+        Raises:
+            ValueError: If the coupon list provided does not have exactly 10 elements corresponding
+                        to coupon rates for 10 years.
         """
+        # Ensure coupons list input is a valid list of SSB coupon rates
+        if len(coupons) != 10: # 
+            raise ValueError(
+                f"Coupons list must have 10 elements for coupon rates over 10 years, "
+                f"but it has {len(coupons)} elements.")
+        if not all(coupons[i] <= coupons[i+1] for i in range(len(coupons)-1)):
+            raise ValueError("Coupon rates must be monotonically increasing.")
+
         records = []
-        for i in range(120): # Iterate through 120 months (10years)
+        for i in range(120): # Iterate through all 120 months (10yrs)
             tenure = i + 1  # Tenure in months (starting from 1)
             n_years = tenure // 12  # Full years completed
             month_of_yr = tenure % 12  # Months into the current year
@@ -144,6 +170,9 @@ class MAS_bondsandbills_APIClient:
         Returns:
             dict: The most recent 6-month T-bill's record containing details such as 
             issue code, auction date, cutoff yield etc.
+        
+        Raises:
+            Exception: If API request fails to fetch latest T-bill data.
         """
         # Prepare the API request parameters
         filters = (
@@ -154,14 +183,18 @@ class MAS_bondsandbills_APIClient:
         )
 
         # Fetch and return the data 
-        response = self.fetch_data(
-            "listbondsandbills",
-            params={
-                "rows": 1,                  # Only get the most recent 6mo T-bill
-                "filters": filters,
-                "sort": "auction_date desc" # To get the most recent 6mo T-bill first
-                }
-            )
+        try:
+            response = self.fetch_data(
+                "listbondsandbills",
+                params={
+                    "rows": 1,                  # Only get the most recent 6mo T-bill
+                    "filters": filters,
+                    "sort": "auction_date desc" # To get the most recent 6mo T-bill first
+                    }
+                )
+        except Exception as e:
+            raise Exception(f"Failed to fetch latest T-bill data: {e}")
+        
         return response["result"]["records"][0]
     
     def get_6m_tbill_bid_yield(self):
@@ -171,15 +204,22 @@ class MAS_bondsandbills_APIClient:
         
         Returns:
             float: The bid yield for the most recent 6-month T-bill.
+        
+        Raises:
+            Exception: If API request fails to fetch the most recent bid price and yield data.
         """
-        response = self.fetch_data(
-            "pricesandyields_chart",
-            params={
-                "rows": 1,                   # Only get bid data from the most recent day
-                "filters": "product_type:B", # Get retail T-bills, not institutional MAS bills
-                "sort": "end_of_period desc" # To get the most recent bids
-            }
-        )
+        try:
+            response = self.fetch_data(
+                "pricesandyields_chart",
+                params={
+                    "rows": 1,                   # Only get bid data from the most recent day
+                    "filters": "product_type:B", # Get retail T-bills, not institutional MAS bills
+                    "sort": "end_of_period desc" # To get the most recent bids
+                }
+            )
+        except Exception as e:
+            raise Exception(f"Failed to fetch most recent bid price and yield data: {e}")
+        
         return response["result"]["records"][0]["bid_6m_tbill_yield"]
 
     
