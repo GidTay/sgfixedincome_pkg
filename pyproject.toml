@@ -29,6 +29,16 @@ sphinx-rtd-theme = "^3.0.2"
 ipykernel = "^6.29.5"
 jupyter = "^1.1.1"
 
+
+[tool.poetry.group.app.dependencies]
+streamlit = "^1.41.0"
+
+[tool.poetry.extras]
+app = ["streamlit", "matplotlib", "seaborn"]
+
+[tool.poetry.scripts]
+sgfixedincome-app = "sgfixedincome_pkg.cli:run_app"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
