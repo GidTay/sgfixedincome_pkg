@@ -16,6 +16,7 @@ seaborn = "^0.13.2"
 numpy = "^2.2.0"
 datetime = "^5.5"
 pytz = "^2024.2"
+pulp = "^2.9.0"
 
 [tool.poetry.dev-dependencies]
 

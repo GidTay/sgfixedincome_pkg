@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
+import pulp
 from sgfixedincome_pkg import equations
 
 def filter_df(combined_df, investment_amount=None, min_tenure=0, max_tenure=999, 
@@ -345,3 +346,161 @@ def plot_bank_offerings_with_fuzz(df, product_provider, fuzz_factor=0.02):
 
     # Show the plot
     plt.show()
+
+def get_optimal_allocation(df, total_investment, target_tenure):
+    """
+    Find the optimal allocation of investments across products to maximize returns,
+    given a total investment amount and tenure period.
+
+    We assume any remaining unallocated sum earns no return, and only consider investments
+    with the exact same tenure as the input value. The solution uses the PuLP library for 
+    linear programming optimization. We seek to maximize total dollar return subject to a 
+    number of constraints:
+
+    - Total investment constraint: sum of investments allocated across products must be 
+            less than or equal to the `total_investment` amount.
+    - Provider-Product uniqueness constraint: among all the available deposit ranges,
+            you can only invest in each product-provider pair once. For example, you cannot
+            invest separately in the $1,000 to $9,999 and the $10,000 to $19,999 brackets
+            of DBS Bank's fixed deposit. Investments within a product-provider pair are
+            cumulative.
+    - Investment bounds: investment allocation must be within the specified deposit range
+            defined by the 'Deposit lower bound' and 'Deposit upper bound' columns.
+    - Required multiples constraint: if required multiples for investment exist, you can
+            only invest with the required multiples.
+    
+    Parameters:
+        df (pandas.DataFrame): DataFrame with investment options. It should contain
+            columns 'Tenure', 'Rate', 'Deposit lower bound', 'Deposit upper bound', 
+            'Product provider', and 'Product'.
+        total_investment (float): Total amount available for investment
+        target_tenure (int): Target investment period in months
+    
+    Returns:
+        tuple: (allocations_df, summary_dict)
+
+            - allocations_df (pd.DataFrame): DataFrame with columns:
+                - Provider: Name of financial institution
+                - Product: Name of investment product
+                - Allocated Amount: Amount allocated to this option
+                - Rate: Annual interest rate as percentage
+                - Tenure: Investment period in months
+                - Return: Expected return in dollars
+                - Deposit lower bound: Minimum investment amount
+                - Deposit upper bound: Maximum investment amount
+                
+            - summary_dict (dict): Dictionary containing:
+                - total_return: Total expected return in dollars
+                - total_allocated: Total amount allocated to investments
+                - unallocated: Remaining unallocated amount
+    """
+    # Filter for investments with tenure <= target_tenure
+    df = df[df['Tenure'] == target_tenure].copy()
+
+    if df.empty:
+        raise ValueError(f"No investment options found for tenure of {target_tenure} months")
+    
+    # Create unique identifiers for each investment option
+    df['investment_id'] = df.apply(
+        lambda x: f"{x['Product provider']}_{x['Product']}_{x['Deposit lower bound']}_{x['Deposit upper bound']}", 
+        axis=1
+    )
+    
+    # Initialize optimization problem
+    prob = pulp.LpProblem("Investment_Optimization", pulp.LpMaximize)
+    
+    # Create decision variables for investment amounts
+    investment_vars = {}
+    # Create binary variables for range selection
+    range_selection = {}
+    
+    # Initialize variables for each investment option
+    for inv_id in df['investment_id']:
+        investment_vars[inv_id] = pulp.LpVariable(f"invest_{inv_id}", lowBound=0)
+        range_selection[inv_id] = pulp.LpVariable(f"select_{inv_id}", cat='Binary')
+    
+    # Calculate returns and set objective function
+    returns = []
+    for _, row in df.iterrows():
+        inv_id = row['investment_id']
+        return_per_dollar = equations.calculate_dollar_return(1, row['Rate'], target_tenure)
+        option_return = investment_vars[inv_id] * return_per_dollar
+        returns.append(option_return)
+    
+    prob += pulp.lpSum(returns)
+    
+    # Constraint 1: Total investment constraint
+    prob += pulp.lpSum(investment_vars.values()) <= total_investment
+    
+    # Constraint 2: Provider-Product uniqueness constraint
+    for provider_product in df[['Product provider', 'Product']].drop_duplicates().values:
+        relevant_rows = df[
+            (df['Product provider'] == provider_product[0]) & 
+            (df['Product'] == provider_product[1])
+        ]
+        
+        if not relevant_rows.empty:
+            relevant_ids = relevant_rows['investment_id'].values
+            
+            # Only one range can be selected per provider-product pair
+            prob += pulp.lpSum(range_selection[inv_id] for inv_id in relevant_ids) <= 1
+            
+            # Link investment amounts to range selection
+            for inv_id in relevant_ids:
+                row = df[df['investment_id'] == inv_id].iloc[0]
+                
+                # If range is not selected (0), investment must be 0
+                # If range is selected (1), investment must be within bounds
+                prob += investment_vars[inv_id] <= row['Deposit upper bound'] * range_selection[inv_id]
+                prob += investment_vars[inv_id] >= row['Deposit lower bound'] * range_selection[inv_id]
+    
+    # Constraint 3: Required multiples constraint
+    for _, row in df.iterrows():
+        inv_id = row['investment_id']
+        
+        if pd.notna(row['Required multiples']) and row['Required multiples'] > 0:
+            multiple = pulp.LpVariable(f"multiple_{inv_id}", lowBound=0, cat='Integer')
+            prob += investment_vars[inv_id] == multiple * row['Required multiples']
+    
+    # Solve the problem
+    prob.solve()
+    
+    if pulp.LpStatus[prob.status] != 'Optimal':
+        raise ValueError("Failed to find optimal solution")
+    
+    # Extract results
+    allocation_records = []
+    total_return = 0
+    total_allocated = 0
+    
+    for _, row in df.iterrows():
+        inv_id = row['investment_id']
+        amount = pulp.value(investment_vars[inv_id])
+        
+        # Only include non-zero allocations with some tolerance for floating-point errors
+        if amount > 1e-6:  # Small threshold to handle numerical precision
+            return_amount = equations.calculate_dollar_return(amount, row['Rate'], target_tenure)
+            
+            allocation_records.append({
+                'Provider': row['Product provider'],
+                'Product': row['Product'],
+                'Allocated Amount': round(amount, 2),  # Round to 2 decimal places
+                'Return': round(return_amount, 2),
+                'Rate': row['Rate'],
+                'Tenure': target_tenure,
+                'Deposit lower bound': row['Deposit lower bound'],
+                'Deposit upper bound': row['Deposit upper bound']
+            })
+            
+            total_return += return_amount
+            total_allocated += amount
+    
+    # Create DataFrame and summary dictionary
+    allocations_df = pd.DataFrame(allocation_records)
+    summary_dict = {
+        'total_return': round(total_return, 2),
+        'total_allocated': round(total_allocated, 2),
+        'unallocated': round(total_investment - total_allocated, 2)
+    }
+    
+    return allocations_df, summary_dict
