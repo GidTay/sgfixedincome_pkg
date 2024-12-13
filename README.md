@@ -1,5 +1,7 @@
 # sgfixedincome_pkg
 
+[![codecov](https://codecov.io/gh/GidTay/sgfixedincome_pkg/branch/main/graph/badge.svg)](https://codecov.io/gh/GidTay/sgfixedincome_pkg)
+
 A python package to aggregate and analyse data on SGD-denominated retail fixed income products in Singapore.
 
 Besides the base package, this package includes an optional Streamlit web interface for easy analysis of Singapore fixed income investments. 

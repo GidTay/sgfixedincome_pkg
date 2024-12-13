@@ -30,8 +30,9 @@ jobs:
         run: poetry run pytest tests/ --cov=sgfixedincome_pkg --cov-report=xml
 
       - name: Use Codecov to track coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml # coverage report
 
       - name: Build documentation
