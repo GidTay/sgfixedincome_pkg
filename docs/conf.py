@@ -21,12 +21,21 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
 ]
-autoapi_dirs = ["../src"]
+
+# Autoapi settings
+autoapi_dirs = ["../src/sgfixedincome_pkg"] 
+autoapi_ignore = ["*/streamlit_app/*"]  # Exclude streamlit_app
+autoapi_output_dir = '_autoapi'  # Different output directory
+autoapi_add_toctree_entry = True
+autoapi_python_class_content = 'both'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = [
+    "_build", "Thumbs.db", ".DS_Store", 
+    "*streamlit_app*", "**streamlit_app**"
+]
 
 # -- Options for HTML output -------------------------------------------------
 

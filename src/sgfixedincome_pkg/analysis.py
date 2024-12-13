@@ -352,16 +352,16 @@ def better_allocation(df, investment_amount, tenure):
     different products. 
     
     Strategy:
+    
     1. First sorts all available products by interest rate in descending order
     2. For each provider-product pair, only allows investment in one deposit range 
        (the one with highest rate that we can afford given remaining funds)
     3. Allocates maximum possible amount to each product while respecting:
-       - Deposit range bounds (lower and upper limits)
-       - Required multiples (if any)
-       - Available remaining investment amount
-    4. Continues allocation until either:
-       - The entire investment amount is allocated, or
-       - No more valid products are available
+       deposit range bounds (lower and upper limits),
+       required multiples (if any), and
+       available remaining investment amount
+    4. Continues allocation until either the entire investment amount is allocated, or
+       no more valid products are available
 
     Note that while this strategy often produces returns at least as good as 
     investing in any single product, it may sometimes produce lower returns,
