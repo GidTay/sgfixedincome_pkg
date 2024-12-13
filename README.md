@@ -32,7 +32,7 @@ $ pip install sgfixedincome[app]
 
 ### Documentation and Usage
 
-Detailed documentation can be found on Read the Docs.
+Detailed documentation can be found on [Read the Docs](https://sgfixedincome-pkg.readthedocs.io/en/latest/).
 
 You can also explore detailed vignettes demonstrating the package's functionality:
 
