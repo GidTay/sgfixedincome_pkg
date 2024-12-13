@@ -22,6 +22,10 @@ extensions = [
     "sphinx.ext.viewcode",
 ]
 
+# Notebook execution settings
+nb_execution_mode = "off"  # This will prevent notebook execution
+nb_execution_raise_on_error = False
+
 # Autoapi settings
 autoapi_dirs = ["../src/sgfixedincome_pkg"] 
 autoapi_ignore = ["*/streamlit_app/*"]  # Exclude streamlit_app
