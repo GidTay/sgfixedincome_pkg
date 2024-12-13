@@ -76,8 +76,8 @@ def main():
         **Investment Analysis Steps:**
         1. Enter your investment amount (in SGD) in the sidebar.
             The entire analysis is dependent on your investment amount.
-        2. Use the navigation menu to access with pages that analyse the data.
-        3. Adjust tenure ranges as needed.
+        2. Use the navigation menu to access pages that analyse the data.
+        3. Adjust inputs (tenure/ product selection) as needed to customize your analysis.
         
         **Pages:**
         - **Data Overview**: Overview of all available data including a summary, a plot,
