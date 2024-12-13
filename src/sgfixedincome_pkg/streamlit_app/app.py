@@ -16,15 +16,35 @@ def main():
         "Home", 
         "Data Overview",
         "Best Rates and Returns",
+        "Better Allocation",
         "Provider Offerings",
         "Rate Comparisons"
     ])
     
+    # Investment amount input (common across most analyses)
+    investment_amount = st.sidebar.number_input(
+        "Investment Amount (SGD)", 
+        min_value=500,
+        value=10000, 
+        step=500
+    )
+
+    current_ssb_holdings = st.sidebar.number_input(
+        "Current SSB Holdings (SGD)",
+        min_value=0.0,
+        max_value=200000.0,
+        value=0.0,
+        step=500.0,
+        help="Enter your current Singapore Savings Bonds (SSB) holdings. This affects your maximum possible investment in new SSBs."
+    )
+
     # Fetch combined dataframe
     @st.cache_data
-    def load_combined_data():
+    def load_combined_data(ssb_holdings):
         try:
-            combined_df, fetch_failures, warnings = consolidate.create_combined_df()
+            combined_df, fetch_failures, warnings = consolidate.create_combined_df(
+                current_ssb_holdings=ssb_holdings
+            )
             
             # Display warnings and fetch failures
             if warnings:
@@ -42,18 +62,11 @@ def main():
             st.error(f"Error loading data: {e}")
             return None
     
-    combined_df = load_combined_data()
+    combined_df = load_combined_data(current_ssb_holdings)
     
     if combined_df is None:
         st.error("Could not load financial data. Please check your internet connection or try again later.")
         return
-    
-    # Investment amount input (common across most analyses)
-    investment_amount = st.sidebar.number_input(
-        "Investment Amount (SGD)", 
-        value=10000, 
-        step=500
-    )
     
     # Page-specific analyses
     if page == "Home":
@@ -85,6 +98,8 @@ def main():
                     investment multiples across products.
         - **Best Rates and Returns**: Find highest return investments and 
                     best rates across tenures
+        - **Better Allocation**: Find a possibly better investment strategy that allows for allocation
+                    across multiple products, rather than investing the full sum to a single product.
         - **Provider Offerings**: View individual provider rates across deposit ranges and tenures
         - **Rate Comparisons**: View rates across deposit ranges and providers for a given tenure
         """)
@@ -111,9 +126,9 @@ def main():
         # Tenure range selector
         col1, col2 = st.columns(2)
         with col1:
-            min_tenure = st.number_input("Minimum Tenure (months)", min_value=0, max_value=60, value=0)
+            min_tenure = st.number_input("Minimum Tenure (months)", min_value=0, max_value=120, value=0)
         with col2:
-            max_tenure = st.number_input("Maximum Tenure (months)", min_value=0, max_value=60, value=60)
+            max_tenure = st.number_input("Maximum Tenure (months)", min_value=0, max_value=120, value=60)
         
         # Plot. Limit size of plot to center 3/5 of page width
         try:
@@ -137,9 +152,9 @@ def main():
         st.markdown("**Select Tenures to Consider:**")
         col1, col2 = st.columns(2)
         with col1:
-            min_tenure = st.number_input("Minimum Tenure (months)", min_value=0, max_value=60, value=0)
+            min_tenure = st.number_input("Minimum Tenure (months)", min_value=0, max_value=120, value=0)
         with col2:
-            max_tenure = st.number_input("Maximum Tenure (months)", min_value=0, max_value=60, value=60)
+            max_tenure = st.number_input("Maximum Tenure (months)", min_value=0, max_value=120, value=60)
         
         # Add product selection checkboxes
         st.markdown("**Select Products to Include:**")
@@ -197,6 +212,72 @@ def main():
         except ValueError as e:
             st.error(str(e))
     
+    elif page == "Better Allocation":
+        st.header("🤓 Better Allocation")
+
+        # Tenure selector
+        tenure = st.number_input("Select Tenure (months)", min_value=0, max_value=120, value=12)
+        
+        # Add product selection checkboxes
+        st.markdown("**Select Products to Include:**")
+        products_list = analysis.products(combined_df)
+        product_selections = {}
+        col1, col2 = st.columns(2)
+        for i, product in enumerate(products_list):
+            with col1 if i < len(products_list)/2 else col2:
+                product_selections[product] = st.checkbox(product, value=True)
+
+        # Filter dataframe based on selections
+        filtered_df = combined_df[combined_df.apply(lambda row: 
+            product_selections[f"{row['Product provider']} - {row['Product']}"], axis=1)]
+
+        # Better Allocation section
+        st.subheader(f"Best Allocation for S${investment_amount}")
+        st.markdown("""
+        Returns a better strategy to improve effective rate by allocating investment across 
+        different products. Refer to documentation for details.
+                    
+        Note: while this strategy often produces returns at least as good as investing in any 
+        single product, it may sometimes produce lower returns, and may also be different 
+        from the globally optimal allocation. 
+        """)
+        try:
+            allocation_df = analysis.better_allocation(filtered_df, investment_amount, tenure)
+            st.dataframe(allocation_df)
+        except ValueError as e:
+            st.error(str(e))
+
+        # Plot better_allocation strategy rates
+        st.subheader(f"Plot of 'better allocation' strategy rates for S${investment_amount}")
+        
+        # Tenure range selector
+        st.markdown("**Select Tenures to Plot:**")
+        col1, col2 = st.columns(2)
+        with col1:
+            min_tenure = st.number_input("Minimum Tenure (months)", min_value=0, max_value=120, value=0)
+        with col2:
+            max_tenure = st.number_input("Maximum Tenure (months)", min_value=0, max_value=120, value=60)
+        
+        # Plot better_allocation strategy rates alone
+        try:
+            analysis.plot_better_allocation_strategy(filtered_df, investment_amount, min_tenure, max_tenure)
+            col1, col2, col3 = st.columns([1,3,1])
+            with col2:
+                st.pyplot(plt.gcf())
+            plt.close()
+        except ValueError as e:
+            st.error(str(e))
+        
+        # Plot better_allocation strategy and pure rates
+        try:
+            analysis.plot_pure_and_better_allocation_strategy_rates(filtered_df, investment_amount, min_tenure, max_tenure)
+            col1, col2, col3 = st.columns([1,3,1])
+            with col2:
+                st.pyplot(plt.gcf())
+            plt.close()
+        except ValueError as e:
+            st.error(str(e))
+
     elif page == "Provider Offerings":
         st.header("🏦 Provider Rate Offerings")
         st.markdown("View rates offered across deposit ranges for any given provider:")
@@ -220,7 +301,7 @@ def main():
         st.markdown("View rates across deposit ranges and providers for a given tenure:")
         
         # Tenure selector
-        tenure = st.number_input("Select Tenure (months)", min_value=0, max_value=60, value=6)
+        tenure = st.number_input("Select Tenure (months)", min_value=0, max_value=120, value=6)
         
         # Filter dataframe for selected tenure
         tenure_df = combined_df[combined_df['Tenure'] == tenure]

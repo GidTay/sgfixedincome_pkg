@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
-import pulp
 from sgfixedincome_pkg import equations
 
 def filter_df(combined_df, investment_amount=None, min_tenure=0, max_tenure=999, 
@@ -347,160 +346,243 @@ def plot_bank_offerings_with_fuzz(df, product_provider, fuzz_factor=0.02):
     # Show the plot
     plt.show()
 
-def get_optimal_allocation(df, total_investment, target_tenure):
+def better_allocation(df, investment_amount, tenure):
     """
-    Find the optimal allocation of investments across products to maximize returns,
-    given a total investment amount and tenure period.
-
-    We assume any remaining unallocated sum earns no return, and only consider investments
-    with the exact same tenure as the input value. The solution uses the PuLP library for 
-    linear programming optimization. We seek to maximize total dollar return subject to a 
-    number of constraints:
-
-    - Total investment constraint: sum of investments allocated across products must be 
-            less than or equal to the `total_investment` amount.
-    - Provider-Product uniqueness constraint: among all the available deposit ranges,
-            you can only invest in each product-provider pair once. For example, you cannot
-            invest separately in the $1,000 to $9,999 and the $10,000 to $19,999 brackets
-            of DBS Bank's fixed deposit. Investments within a product-provider pair are
-            cumulative.
-    - Investment bounds: investment allocation must be within the specified deposit range
-            defined by the 'Deposit lower bound' and 'Deposit upper bound' columns.
-    - Required multiples constraint: if required multiples for investment exist, you can
-            only invest with the required multiples.
+    Returns a better strategy to improve effective rate by allocating investment across 
+    different products. 
     
+    Strategy:
+    1. First sorts all available products by interest rate in descending order
+    2. For each provider-product pair, only allows investment in one deposit range 
+       (the one with highest rate that we can afford given remaining funds)
+    3. Allocates maximum possible amount to each product while respecting:
+       - Deposit range bounds (lower and upper limits)
+       - Required multiples (if any)
+       - Available remaining investment amount
+    4. Continues allocation until either:
+       - The entire investment amount is allocated, or
+       - No more valid products are available
+
+    Note that while this strategy often produces returns at least as good as 
+    investing in any single product, it may sometimes produce lower returns,
+    and may also be different from the globally optimal allocation. For example,
+    consider the case where we 'use up' a provider-product pair by allocating 
+    the full amount to a low deposit range with high rates, and because of that
+    forfeit the ability to invest in the same provider-product at a higher deposit
+    range but a slightly lower rate. The overall return may be higher by allocating
+    more to a slightly lower rate deposit range.
+
     Parameters:
-        df (pandas.DataFrame): DataFrame with investment options. It should contain
-            columns 'Tenure', 'Rate', 'Deposit lower bound', 'Deposit upper bound', 
-            'Product provider', and 'Product'.
-        total_investment (float): Total amount available for investment
-        target_tenure (int): Target investment period in months
-    
+        df (pd.DataFrame): DataFrame containing 'Tenure', 'Rate', 'Deposit lower bound', 
+                            'Deposit upper bound', 'Product provider', 'Product'.
+        investment_amount (float): The total investment amount to allocate across different products.
+        tenure (int): The tenure in months for the investment.
+
     Returns:
-        tuple: (allocations_df, summary_dict)
+        pd.DataFrame: A DataFrame containing:
 
-            - allocations_df (pd.DataFrame): DataFrame with columns:
-                - Provider: Name of financial institution
-                - Product: Name of investment product
-                - Allocated Amount: Amount allocated to this option
-                - Rate: Annual interest rate as percentage
-                - Tenure: Investment period in months
-                - Return: Expected return in dollars
-                - Deposit lower bound: Minimum investment amount
-                - Deposit upper bound: Maximum investment amount
-                
-            - summary_dict (dict): Dictionary containing:
-                - total_return: Total expected return in dollars
-                - total_allocated: Total amount allocated to investments
-                - unallocated: Remaining unallocated amount
+            - Product provider: Provider offering the product
+            - Product: Type of investment product
+            - Allocated amount: Amount invested in this product
+            - Rate (% p.a.): Annual interest rate as percentage
+            - Expected return ($): Expected dollar return from this allocation
+            Plus a summary row with totals and effective overall rate
     """
-    # Filter for investments with tenure <= target_tenure
-    df = df[df['Tenure'] == target_tenure].copy()
+    
+    # Filter rows by the investment amount and the given tenure
+    filtered_df = df[
+        (df['Deposit lower bound'] <= investment_amount) & 
+        (df['Tenure'] == tenure)
+    ]
 
-    if df.empty:
-        raise ValueError(f"No investment options found for tenure of {target_tenure} months")
+    # Raise an exception if no valid rows remain after filtering
+    if filtered_df.empty:
+        raise ValueError(f"No data available for the investment amount of {investment_amount} and tenure of {tenure} months.")
     
-    # Create unique identifiers for each investment option
-    df['investment_id'] = df.apply(
-        lambda x: f"{x['Product provider']}_{x['Product']}_{x['Deposit lower bound']}_{x['Deposit upper bound']}", 
-        axis=1
-    )
-    
-    # Initialize optimization problem
-    prob = pulp.LpProblem("Investment_Optimization", pulp.LpMaximize)
-    
-    # Create decision variables for investment amounts
-    investment_vars = {}
-    # Create binary variables for range selection
-    range_selection = {}
-    
-    # Initialize variables for each investment option
-    for inv_id in df['investment_id']:
-        investment_vars[inv_id] = pulp.LpVariable(f"invest_{inv_id}", lowBound=0)
-        range_selection[inv_id] = pulp.LpVariable(f"select_{inv_id}", cat='Binary')
-    
-    # Calculate returns and set objective function
-    returns = []
-    for _, row in df.iterrows():
-        inv_id = row['investment_id']
-        return_per_dollar = equations.calculate_dollar_return(1, row['Rate'], target_tenure)
-        option_return = investment_vars[inv_id] * return_per_dollar
-        returns.append(option_return)
-    
-    prob += pulp.lpSum(returns)
-    
-    # Constraint 1: Total investment constraint
-    prob += pulp.lpSum(investment_vars.values()) <= total_investment
-    
-    # Constraint 2: Provider-Product uniqueness constraint
-    for provider_product in df[['Product provider', 'Product']].drop_duplicates().values:
-        relevant_rows = df[
-            (df['Product provider'] == provider_product[0]) & 
-            (df['Product'] == provider_product[1])
-        ]
-        
-        if not relevant_rows.empty:
-            relevant_ids = relevant_rows['investment_id'].values
-            
-            # Only one range can be selected per provider-product pair
-            prob += pulp.lpSum(range_selection[inv_id] for inv_id in relevant_ids) <= 1
-            
-            # Link investment amounts to range selection
-            for inv_id in relevant_ids:
-                row = df[df['investment_id'] == inv_id].iloc[0]
-                
-                # If range is not selected (0), investment must be 0
-                # If range is selected (1), investment must be within bounds
-                prob += investment_vars[inv_id] <= row['Deposit upper bound'] * range_selection[inv_id]
-                prob += investment_vars[inv_id] >= row['Deposit lower bound'] * range_selection[inv_id]
-    
-    # Constraint 3: Required multiples constraint
-    for _, row in df.iterrows():
-        inv_id = row['investment_id']
-        
-        if pd.notna(row['Required multiples']) and row['Required multiples'] > 0:
-            multiple = pulp.LpVariable(f"multiple_{inv_id}", lowBound=0, cat='Integer')
-            prob += investment_vars[inv_id] == multiple * row['Required multiples']
-    
-    # Solve the problem
-    prob.solve()
-    
-    if pulp.LpStatus[prob.status] != 'Optimal':
-        raise ValueError("Failed to find optimal solution")
-    
-    # Extract results
-    allocation_records = []
+    # Sort products by rate in descending order (highest rate first)
+    filtered_df = filtered_df.sort_values(by='Rate', ascending=False)
+
+    remaining_amount = investment_amount
+    allocations = []
     total_return = 0
-    total_allocated = 0
-    
-    for _, row in df.iterrows():
-        inv_id = row['investment_id']
-        amount = pulp.value(investment_vars[inv_id])
+    used_provider_products = set()  # Track which provider-product pairs we've used
+
+    # Allocate the investment to the products
+    for _, product in filtered_df.iterrows():
+        # Check how much we can allocate to this product
+        if remaining_amount <= 0:
+            break
+
+        # Create unique identifier for provider-product pair
+        provider_product = (product['Product provider'], product['Product'])
         
-        # Only include non-zero allocations with some tolerance for floating-point errors
-        if amount > 1e-6:  # Small threshold to handle numerical precision
-            return_amount = equations.calculate_dollar_return(amount, row['Rate'], target_tenure)
+        # Skip if we've already allocated to this provider-product pair
+        if provider_product in used_provider_products:
+            continue
+
+        max_allocatable = min(
+            product['Deposit upper bound'],
+            remaining_amount
+        )
+        
+        # If we can't meet the minimum deposit, skip this product
+        if max_allocatable < product['Deposit lower bound']:
+            continue
+
+        # Calculate the allocation
+        allocation = max_allocatable
+
+        # Handle required multiples if they exist
+        if pd.notna(product['Required multiples']) and product['Required multiples'] > 0:
+            # Calculate maximum number of multiples we can allocate
+            num_multiples = int(allocation // product['Required multiples'])
+            allocation = num_multiples * product['Required multiples']
             
-            allocation_records.append({
-                'Provider': row['Product provider'],
-                'Product': row['Product'],
-                'Allocated Amount': round(amount, 2),  # Round to 2 decimal places
-                'Return': round(return_amount, 2),
-                'Rate': row['Rate'],
-                'Tenure': target_tenure,
-                'Deposit lower bound': row['Deposit lower bound'],
-                'Deposit upper bound': row['Deposit upper bound']
-            })
-            
-            total_return += return_amount
-            total_allocated += amount
+            # If we can't meet even one multiple, skip this product
+            if allocation < product['Required multiples']:
+                continue
+        
+        # Calculate return for this allocation
+        product_return = equations.calculate_dollar_return(allocation, product['Rate'], tenure)
+        
+        # Track the allocation
+        allocations.append({
+            'Product provider': product['Product provider'],
+            'Product': product['Product'],
+            'Allocated amount': allocation,
+            'Rate (% p.a.)': product['Rate'],
+            'Expected return ($)': product_return
+        })
+
+        # Mark this provider-product pair as used
+        used_provider_products.add(provider_product)
+        
+        # Deduct the allocated amount and update total return
+        remaining_amount -= allocation
+        total_return += product_return
+
+    # If we have allocations, calculate summary statistics
+    if allocations:
+        # Calculate per annum rate
+        total_percentage_return = (total_return / investment_amount) * 100
+        per_annum_rate = equations.calculate_per_annum_rate(total_percentage_return, tenure)
+        
+        # Convert allocations to a DataFrame
+        allocation_df = pd.DataFrame(allocations)
+
+        # Add total summary row
+        summary_row = pd.DataFrame([{
+            'Product provider': 'Total',
+            'Product': 'All Products',
+            'Allocated amount': investment_amount - remaining_amount,
+            'Rate (% p.a.)': per_annum_rate,
+            'Expected return ($)': total_return
+        }])
+
+        allocation_df = pd.concat([allocation_df, summary_row], ignore_index=True)
+        
+        return allocation_df
+    else:
+        raise ValueError("Could not find any valid allocations with the given constraints.")
+
+def plot_better_allocation_strategy(df, investment_amount, min_tenure=0, max_tenure=999):
+    """
+    Plot the Rate (% p.a.) against Tenure (Months) for the better allocation strategy 
+    across all tenures available in the dataframe.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame containing 'Tenure', 'Rate', 'Deposit lower bound', 
+                            'Deposit upper bound', 'Product provider', 'Product'.
+        investment_amount (float): The total investment amount to allocate across different products.
+        min_tenure (int, optional): The minimum tenure (in months) to include. Default is 0.
+        max_tenure (int, optional): The maximum tenure (in months) to include. Default is 999.
+    """
+    # Extract all unique tenures from the dataframe and sort them
+    tenures = sorted(df['Tenure'].unique())
+    tenures = [t for t in tenures if min_tenure <= t <= max_tenure]
+    rates = []
+
+    for tenure in tenures:
+        try:
+            # Get a better allocation for the given tenure
+            allocation_df = better_allocation(df, investment_amount, tenure)
+            # Extract the total Rate (% p.a.) from the summary row
+            total_rate = allocation_df.loc[allocation_df['Product provider'] == 'Total', 'Rate (% p.a.)'].values[0]
+            rates.append(total_rate)
+        except ValueError:
+            # Append NaN if no valid data for the tenure
+            rates.append(None)
+
+    # Plot the results
+    plt.figure(figsize=(10, 6))
+    plt.plot(tenures, rates, marker='o', linestyle='-', color='blue', label='Effective Rate (% p.a.)')
+    plt.title('Better Allocation Strategy: Rate (% p.a.) vs. Tenure (Months)', fontsize=16)
+    plt.xlabel('Tenure (Months)', fontsize=12)
+    plt.ylabel('Rate (% p.a.)', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.xticks(tenures, rotation=45)
+    plt.legend(fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+def plot_pure_and_better_allocation_strategy_rates(df, investment_amount, min_tenure=0, max_tenure=999):
+    """
+    Overlay plot for best rates (% p.a.) and effective better allocation strategy rates for each tenure.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame containing 'Tenure', 'Rate', 'Deposit lower bound', 
+                            'Deposit upper bound', 'Product provider', 'Product'.
+        investment_amount (float): The investment amount to filter available rates and products.
+        min_tenure (int, optional): The minimum tenure (in months) to include. Default is 0.
+        max_tenure (int, optional): The maximum tenure (in months) to include. Default is 999.
+    """
+    # Get best rates DataFrame
+    best_rates_df = best_rates(df, investment_amount, min_tenure, max_tenure)
     
-    # Create DataFrame and summary dictionary
-    allocations_df = pd.DataFrame(allocation_records)
-    summary_dict = {
-        'total_return': round(total_return, 2),
-        'total_allocated': round(total_allocated, 2),
-        'unallocated': round(total_investment - total_allocated, 2)
-    }
+    # Combine 'Product provider' and 'Product' for unique identification
+    best_rates_df['Provider-Product'] = best_rates_df['Product provider'] + " - " + best_rates_df['Product']
     
-    return allocations_df, summary_dict
+    # Extract tenures for the better allocation strategy and filter by min/max tenure
+    tenures = sorted(df['Tenure'].unique())
+    tenures = [t for t in tenures if min_tenure <= t <= max_tenure]
+    
+    # Calculate rates for better allocation strategy
+    better_allocation_rates = []
+    for tenure in tenures:
+        try:
+            allocation_df = better_allocation(df, investment_amount, tenure)
+            total_rate = allocation_df.loc[allocation_df['Product provider'] == 'Total', 'Rate (% p.a.)'].values[0]
+            better_allocation_rates.append(total_rate)
+        except ValueError:
+            better_allocation_rates.append(None)
+    
+    # Create the combined plot
+    plt.figure(figsize=(12, 8))
+    
+    # Plot the best individual rates
+    sns.scatterplot(
+        data=best_rates_df,
+        x='Tenure',
+        y='Rate',
+        hue='Provider-Product',
+        palette='tab10',
+        s=100,
+        edgecolor='black'
+    )
+    plt.plot(best_rates_df['Tenure'], best_rates_df['Rate'], 
+             linestyle='-', color='black', linewidth=2, alpha=0.4, label='Best Individual Rates (Line)')
+    
+    # Plot the better allocation strategy rates as a continuous line
+    plt.plot(tenures, better_allocation_rates, 
+             linestyle='-', color='blue', marker='o', alpha=0.4, label='Better Allocation Strategy Rates', linewidth=2)
+    
+    # Add labels, legend, and grid
+    plt.title("Comparison of Best Individual Rates and Better Allocation Strategy Rates", fontsize=16)
+    plt.xlabel("Tenure (Months)", fontsize=14)
+    plt.ylabel("Rate (% p.a.)", fontsize=14)
+    plt.grid(alpha=0.3)
+    plt.legend(fontsize=12, bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    
+    # Show the plot
+    plt.show()
