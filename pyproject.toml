@@ -5,6 +5,9 @@ description = "A package to aggregate fixed income products available to Singapo
 authors = ["Gideon Tay"]
 license = "MIT"
 readme = "README.md"
+documentation = 'https://sgfixedincome-pkg.readthedocs.io/en/latest/'
+homepage = "https://github.com/GidTay/sgfixedincome_pkg"
+repository = "https://github.com/GidTay/sgfixedincome_pkg"
 
 [tool.poetry.dependencies]
 python = "^3.12"
