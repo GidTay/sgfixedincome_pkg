@@ -8,6 +8,7 @@ readme = "README.md"
 documentation = 'https://sgfixedincome-pkg.readthedocs.io/en/latest/'
 homepage = "https://github.com/GidTay/sgfixedincome_pkg"
 repository = "https://github.com/GidTay/sgfixedincome_pkg"
+app = "https://sgfixedincome.streamlit.app/"
 
 [tool.poetry.dependencies]
 python = "^3.12"
