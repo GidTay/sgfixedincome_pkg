@@ -1,8 +1,10 @@
 import pytest
 import pandas as pd
 import numpy as np
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, call
 from sgfixedincome_pkg import analysis, equations
+import matplotlib
+matplotlib.use('Agg')  # Set non-interactive backend before other matplotlib imports
 
 # Fixture for common test data
 @pytest.fixture
@@ -164,14 +166,13 @@ def test_products(sample_df):
         assert product in result
 
 # Tests for plotting functions
+@pytest.mark.filterwarnings("ignore::UserWarning")
 @patch('matplotlib.pyplot.show')
 @patch('seaborn.lineplot')
 def test_plot_rates_vs_tenure(mock_lineplot, mock_show, sample_df):
-    """Test that plot_rates_vs_tenure runs with correct arguments"""
+    """Test that plot_rates_vs_tenure runs with correct arguments"""  
     
-    # Use context manager to suppress expected UserWarning about legend
-    with pytest.warns(UserWarning, match="No artists with labels found to put in legend"):
-        analysis.plot_rates_vs_tenure(sample_df, investment_amount=10000)
+    analysis.plot_rates_vs_tenure(sample_df, investment_amount=10000)
 
     # Check essential plot arguments
     args, kwargs = mock_lineplot.call_args
@@ -183,15 +184,14 @@ def test_plot_rates_vs_tenure(mock_lineplot, mock_show, sample_df):
     # Verify show was called
     mock_show.assert_called_once()
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
 @patch('matplotlib.pyplot.show')
 @patch('matplotlib.pyplot.plot')
 @patch('seaborn.scatterplot')
 def test_plot_best_rates(mock_scatterplot, mock_plot, mock_show, sample_df):
     """Test that plot_best_rates runs with correct arguments"""
     
-    # Use context manager to suppress expected UserWarning about legend
-    with pytest.warns(UserWarning, match="No artists with labels found to put in legend"):
-        analysis.plot_best_rates(sample_df, investment_amount=10000)
+    analysis.plot_best_rates(sample_df, investment_amount=10000)
     
     # Check essential scatter plot arguments
     scatter_args, scatter_kwargs = mock_scatterplot.call_args
@@ -205,14 +205,13 @@ def test_plot_best_rates(mock_scatterplot, mock_plot, mock_show, sample_df):
     # Verify show was called
     mock_show.assert_called_once()
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
 @patch('matplotlib.pyplot.show')
 @patch('seaborn.lineplot')
 def test_plot_bank_offerings_with_fuzz(mock_lineplot, mock_show, sample_df):
-    """Test that plot_bank_offerings_with_fuzz runs with correct arguments"""
+    """Test that plot_bank_offerings_with_fuzz runs with correct arguments"""  
     
-    # Use context manager to suppress expected UserWarning about legend
-    with pytest.warns(UserWarning, match="No artists with labels found to put in legend"):
-        analysis.plot_bank_offerings_with_fuzz(sample_df, product_provider='DBS')
+    analysis.plot_bank_offerings_with_fuzz(sample_df, product_provider='DBS')
     
     # Check essential plot arguments
     args, kwargs = mock_lineplot.call_args
@@ -228,3 +227,131 @@ def test_plot_bank_offerings_invalid_provider(sample_df):
     """Test that appropriate error is raised for invalid provider"""
     with pytest.raises(ValueError):
         analysis.plot_bank_offerings_with_fuzz(sample_df, product_provider='INVALID_BANK')
+
+# Tests for better_allocation function
+def test_better_allocation_basic(sample_df):
+    """Test basic functionality of better_allocation"""
+    investment_amount = 10000
+    tenure = 6
+    result = analysis.better_allocation(sample_df, investment_amount, tenure)
+    
+    # Check structure
+    assert isinstance(result, pd.DataFrame)
+    assert all(col in result.columns for col in [
+        'Product provider', 'Product', 'Allocated amount', 
+        'Rate (% p.a.)', 'Expected return ($)'
+    ])
+    
+    # Check summary row exists
+    assert 'Total' in result['Product provider'].values
+    
+    # Check allocation constraints
+    total_allocated = result.loc[result['Product provider'] == 'Total', 'Allocated amount'].iloc[0]
+    assert total_allocated <= investment_amount
+    
+    # Check individual allocations
+    individual_rows = result[result['Product provider'] != 'Total']
+    for _, row in individual_rows.iterrows():
+        # Check allocated amounts respect bounds from sample_df
+        product_data = sample_df[
+            (sample_df['Product provider'] == row['Product provider']) & 
+            (sample_df['Product'] == row['Product'])
+        ].iloc[0]
+        
+        assert row['Allocated amount'] >= product_data['Deposit lower bound']
+        assert row['Allocated amount'] <= product_data['Deposit upper bound']
+        
+        # Check multiples constraints
+        if pd.notna(product_data['Required multiples']):
+            assert row['Allocated amount'] % product_data['Required multiples'] == 0
+
+def test_better_allocation_invalid_inputs(sample_df):
+    """Test better_allocation with invalid inputs"""
+    # Test with investment amount too low
+    with pytest.raises(ValueError):
+        analysis.better_allocation(sample_df, 100, 6)
+    
+    # Test with invalid tenure
+    with pytest.raises(ValueError):
+        analysis.better_allocation(sample_df, 10000, 999)
+
+def test_better_allocation_expected_returns(sample_df):
+    """Test that better_allocation calculates expected returns correctly"""
+    investment_amount = 10000
+    tenure = 6
+    result = analysis.better_allocation(sample_df, investment_amount, tenure)
+    
+    # Check each allocation's expected return
+    individual_rows = result[result['Product provider'] != 'Total']
+    for _, row in individual_rows.iterrows():
+        expected_return = equations.calculate_dollar_return(
+            row['Allocated amount'],
+            row['Rate (% p.a.)'],
+            tenure
+        )
+        assert abs(row['Expected return ($)'] - expected_return) < 0.01  # Allow for small floating point differences
+    
+    # Check total return is sum of individual returns
+    total_return = result.loc[result['Product provider'] == 'Total', 'Expected return ($)'].iloc[0]
+    sum_individual_returns = result[result['Product provider'] != 'Total']['Expected return ($)'].sum()
+    assert abs(total_return - sum_individual_returns) < 0.01
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+@patch('matplotlib.pyplot.show')
+@patch('matplotlib.pyplot.plot')
+def test_plot_better_allocation_strategy(mock_plot, mock_show, sample_df):
+    """Test that plot_better_allocation_strategy runs with correct arguments"""
+    
+    analysis.plot_better_allocation_strategy(
+        sample_df, 
+        investment_amount=10000,
+        min_tenure=6,
+        max_tenure=12
+    )
+    
+    # Verify plot was called
+    mock_plot.assert_called()
+    
+    # Check plot arguments
+    args, kwargs = mock_plot.call_args
+    assert kwargs.get('marker') == 'o'
+    assert kwargs.get('linestyle') == '-'
+    assert kwargs.get('label') == 'Effective Rate (% p.a.)'
+    
+    # Verify show was called
+    mock_show.assert_called_once()
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+@patch('matplotlib.pyplot.show')
+@patch('matplotlib.pyplot.plot')
+@patch('seaborn.scatterplot')
+def test_plot_pure_and_better_allocation_strategy_rates(
+    mock_scatterplot, mock_plot, mock_show, sample_df
+):
+    """Test that plot_pure_and_better_allocation_strategy_rates runs with correct arguments"""    
+    
+    analysis.plot_pure_and_better_allocation_strategy_rates(
+        sample_df,
+        investment_amount=10000,
+        min_tenure=6,
+        max_tenure=12
+    )
+    
+    # Verify scatter plot was called
+    mock_scatterplot.assert_called_once()
+    scatter_args, scatter_kwargs = mock_scatterplot.call_args
+    assert scatter_kwargs['x'] == 'Tenure'
+    assert scatter_kwargs['y'] == 'Rate'
+    assert scatter_kwargs['hue'] == 'Provider-Product'
+    
+    # Verify plot was called multiple times (for different lines)
+    assert mock_plot.call_count >= 2
+    
+    # Check arguments of the plot calls
+    plot_calls = mock_plot.call_args_list
+    labels = [call_args[1].get('label') for call_args in plot_calls]
+    assert 'Best Individual Rates (Line)' in labels
+    assert 'Better Allocation Strategy Rates' in labels
+    
+    # Verify show was called
+    mock_show.assert_called_once()

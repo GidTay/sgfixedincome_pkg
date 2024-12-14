@@ -1,7 +1,10 @@
 from sgfixedincome_pkg import mas_api_client
 import pytest
 import pandas as pd
-from unittest.mock import patch
+import requests
+from unittest.mock import patch, Mock
+from datetime import datetime
+import pytz
 
 def test_initialization():
     """
@@ -10,6 +13,59 @@ def test_initialization():
     """
     client = mas_api_client.MAS_bondsandbills_APIClient()
     assert client.base_url == "https://eservices.mas.gov.sg/statistics/api/v1/bondsandbills/m/"
+
+def test_fetch_data_success():
+    """
+    Test successful API data fetching with fetch_data method.
+    Verifies both the returned data and that the correct URL and parameters were used.
+    """
+    client = mas_api_client.MAS_bondsandbills_APIClient()
+    base_url = "https://eservices.mas.gov.sg/statistics/api/v1/bondsandbills/m/"
+    
+    # Mock the requests.get response
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "success": True,
+        "result": {
+            "total": 1,
+            "records": [{"test": "data"}]
+        }
+    }
+    mock_response.raise_for_status.return_value = None
+    
+    with patch('requests.get', return_value=mock_response) as mock_get:
+        # Test with no parameters
+        endpoint = "test_endpoint"
+        result = client.fetch_data(endpoint)
+        assert result == mock_response.json.return_value
+        
+        # Verify requests.get was called with correct URL
+        mock_get.assert_called_with(f"{base_url}{endpoint}", params=None)
+        
+        # Test with parameters
+        params = {"param1": "value1", "param2": "value2"}
+        result = client.fetch_data(endpoint, params=params)
+        assert result == mock_response.json.return_value
+        
+        # Verify requests.get was called with correct URL and parameters
+        mock_get.assert_called_with(f"{base_url}{endpoint}", params=params)
+        
+        # Verify the total number of calls
+        assert mock_get.call_count == 2
+
+def test_fetch_data_http_error():
+    """
+    Test fetch_data method handling of HTTP errors.
+    """
+    client = mas_api_client.MAS_bondsandbills_APIClient()
+    
+    # Mock requests.get to raise an HTTPError
+    mock_response = Mock()
+    mock_response.raise_for_status.side_effect = requests.HTTPError("404 Client Error")
+    
+    with patch('requests.get', return_value=mock_response):
+        with pytest.raises(requests.HTTPError):
+            client.fetch_data("test_endpoint")
 
 @patch.object(mas_api_client.MAS_bondsandbills_APIClient, "fetch_data")
 def test_get_latest_ssb_details(mock_fetch_data):
@@ -343,3 +399,49 @@ def test_sudden_6m_tbill_yield_change_warning_exception(
     mock_warn.assert_called_once_with(
         "Failed to check for sudden T-bill yield changes: Simulated error"
     )
+
+@patch('warnings.warn')
+def test_past_last_day_to_apply_ssb_warning_before_deadline(mock_warn):
+    """
+    Test past_last_day_to_apply_ssb_warning when current date is before the deadline.
+    """
+    client = mas_api_client.MAS_bondsandbills_APIClient()
+    
+    # Mock get_latest_ssb_last_day_to_apply to return a future date
+    future_date = (datetime.now().date() + pd.Timedelta(days=7)).strftime('%Y-%m-%d')
+    with patch.object(client, 'get_latest_ssb_last_day_to_apply', return_value=future_date):
+        client.past_last_day_to_apply_ssb_warning()
+        mock_warn.assert_not_called()
+
+@patch('warnings.warn')
+def test_past_last_day_to_apply_ssb_warning_after_deadline(mock_warn):
+    """
+    Test past_last_day_to_apply_ssb_warning when current date is after the deadline.
+    """
+    client = mas_api_client.MAS_bondsandbills_APIClient()
+    
+    # Mock get_latest_ssb_last_day_to_apply to return a past date
+    past_date = (datetime.now().date() - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+    with patch.object(client, 'get_latest_ssb_last_day_to_apply', return_value=past_date):
+        client.past_last_day_to_apply_ssb_warning()
+        mock_warn.assert_called_once()
+        assert "The last day to apply for the latest SSB" in str(mock_warn.call_args[0][0])
+
+@patch('warnings.warn')
+def test_past_last_day_to_apply_ssb_warning_exception(mock_warn):
+    """
+    Test past_last_day_to_apply_ssb_warning when an exception occurs.
+    """
+    client = mas_api_client.MAS_bondsandbills_APIClient()
+    
+    # Mock get_latest_ssb_last_day_to_apply to raise an exception
+    with patch.object(
+        client, 
+        'get_latest_ssb_last_day_to_apply', 
+        side_effect=Exception("Test error")
+    ):
+        client.past_last_day_to_apply_ssb_warning()
+        mock_warn.assert_called_once()
+        assert "Failed to check if the last day to apply for SSB has passed" in str(
+            mock_warn.call_args[0][0]
+        )
