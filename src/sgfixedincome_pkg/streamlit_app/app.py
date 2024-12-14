@@ -40,11 +40,10 @@ def main():
 
     # Fetch combined dataframe
     @st.cache_data
-    def load_combined_data(ssb_holdings):
+    def load_combined_data():
+        """Load initial data with default SSB holdings (0)"""
         try:
-            combined_df, fetch_failures, warnings = consolidate.create_combined_df(
-                current_ssb_holdings=ssb_holdings
-            )
+            combined_df, fetch_failures, warnings = consolidate.create_combined_df()
             
             # Display warnings and fetch failures
             if warnings:
@@ -62,7 +61,30 @@ def main():
             st.error(f"Error loading data: {e}")
             return None
     
-    combined_df = load_combined_data(current_ssb_holdings)
+    def update_ssb_bounds(df, ssb_holdings):
+        """Update SSB bounds based on current holdings"""
+        # Create a copy to avoid modifying the cached dataframe
+        df = df.copy()
+        
+        # Update only SSB rows
+        ssb_mask = df['Product'].str.contains('SSB', case=False, na=False)
+        
+        # Calculate new bounds
+        deposit_upper = max(200000 - ssb_holdings, 0)
+        deposit_lower = 500 if deposit_upper >= 500 else 0
+        
+        # Update the bounds
+        df.loc[ssb_mask, 'Deposit upper bound'] = deposit_upper
+        df.loc[ssb_mask, 'Deposit lower bound'] = deposit_lower
+        
+        return df
+
+    # Load initial data
+    initial_df = load_combined_data()
+
+    # Update bounds based on current holdings
+    if initial_df is not None:
+        combined_df = update_ssb_bounds(initial_df, current_ssb_holdings)
     
     if combined_df is None:
         st.error("Could not load financial data. Please check your internet connection or try again later.")
@@ -87,8 +109,9 @@ def main():
         st.subheader("🔍 How to Use This Tool")
         st.markdown("""
         **Investment Analysis Steps:**
-        1. Enter your investment amount (in SGD) in the sidebar.
-            The entire analysis is dependent on your investment amount.
+        1. Enter your investment amount and current SSB holdings (in SGD) in the sidebar.
+            The entire analysis is dependent on your investment amount. Your current SSB
+            holdings help us determine the maximum additional SSB investments you can make.
         2. Use the navigation menu to access pages that analyse the data.
         3. Adjust inputs (tenure/ product selection) as needed to customize your analysis.
         
@@ -121,7 +144,7 @@ def main():
         st.write(products_list)
 
         # Plot all rates
-        st.subheader(f"Plot of Available Rates for S${investment_amount}")
+        st.subheader(f"Plot of Available Rates for S${investment_amount:,}")
         st.markdown(f"Use the tenure selector below to control the x-axis range of the plot:")
         # Tenure range selector
         col1, col2 = st.columns(2)
@@ -170,7 +193,7 @@ def main():
             product_selections[f"{row['Product provider']} - {row['Product']}"], axis=1)]
 
         # Best returns section
-        st.subheader(f"Best Returns for S${investment_amount}")
+        st.subheader(f"Best Returns for S${investment_amount:,}")
         st.markdown("""
         Find the highest total dollar return attainable for each tenure, considering that the
         offered rates and available products differ across invested amounts.
@@ -190,7 +213,7 @@ def main():
             st.error(str(e))
     
         # Best rates section
-        st.subheader(f"Best Rates for S${investment_amount}")
+        st.subheader(f"Best Rates for S${investment_amount:,}")
         st.markdown("""
         While usually identical to the best returns table above, this may not always be the case.
         For example, product A with a higher rate but which has required multiples of investment may produce 
@@ -232,7 +255,7 @@ def main():
             product_selections[f"{row['Product provider']} - {row['Product']}"], axis=1)]
 
         # Better Allocation section
-        st.subheader(f"Best Allocation for S${investment_amount}")
+        st.subheader(f"Best Allocation for S${investment_amount:,}")
         st.markdown("""
         Returns a better strategy to improve effective rate by allocating investment across 
         different products. Refer to documentation for details.
@@ -248,7 +271,7 @@ def main():
             st.error(str(e))
 
         # Plot better_allocation strategy rates
-        st.subheader(f"Plot of 'better allocation' strategy rates for S${investment_amount}")
+        st.subheader(f"Plot of 'better allocation' strategy rates for S${investment_amount:,}")
         
         # Tenure range selector
         st.markdown("**Select Tenures to Plot:**")
