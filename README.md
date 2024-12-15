@@ -18,16 +18,10 @@ This python package contains:
 
 ## Installation
 
-The base package can be installed without the web interface using:
+The package can be installed using:
 
 ```bash
 $ pip install sgfixedincome_pkg
-```
-
-Besides the base package, this package includes an optional Streamlit web interface for easy analysis of Singapore fixed income investments. To install the package with the web interface:
-
-```bash
-$ pip install sgfixedincome[app]
 ```
 
 ### Documentation and Usage
