@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sgfixedincome_pkg"
-version = "0.1.4"
+version = "0.1.5"
 description = "A package to aggregate fixed income products available to Singapore residents to earn yield on singapore dollars"
 authors = ["Gideon Tay"]
 license = "MIT"
