@@ -37,7 +37,7 @@ codecov = "^2.1.13"
 streamlit = "^1.41.0"
 
 [tool.poetry.extras]
-app = ["streamlit", "matplotlib", "seaborn"]
+app = ["streamlit"]
 
 [tool.poetry.scripts]
 sgfixedincome-app = "sgfixedincome_pkg.cli:run_app"
