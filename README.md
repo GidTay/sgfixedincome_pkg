@@ -37,14 +37,19 @@ You can also explore detailed vignettes demonstrating the package's functionalit
 Or simply explore the [streamlit app](https://sgfixedincome.streamlit.app/).
 
 ### Running the Web Interface
-After installation with the [app] extra, you can launch the web interface using:
+After installation, find the installation location with:
 ```bash
-$ sgfixedincome-app
+$ pip show sgfixedincome_pkg
 ```
 
-Alternatively, in the src/sgfixedincome_pkg/streamlit_app/ directory, run:
+Then run:
 ```bash
-$ streamlit run app.py
+$ streamlit run "C:\Path\To\site-packages\sgfixedincome_pkg\streamlit_app\app.py"
+```
+
+For example:
+```bash
+$ streamlit run "C:\Users\John\Desktop\Folder\test_env\Lib\site-packages\sgfixedincome_pkg\streamlit_app\app.py"
 ```
 
 This will open a browser window with an interactive dashboard.
