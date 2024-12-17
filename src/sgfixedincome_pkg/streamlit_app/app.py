@@ -1,14 +1,176 @@
 import streamlit as st
+import streamlit.runtime.secrets as secrets
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+from datetime import datetime, timedelta
+import requests
+import base64
+import json
+from zoneinfo import ZoneInfo
 from sgfixedincome_pkg import consolidate, analysis
-from sgfixedincome_pkg.mas_api_client import MAS_bondsandbills_APIClient
+
+class GitHubCache:
+    def __init__(self, repo_owner, repo_name, branch="main"):
+        """Initialize GitHub cache system"""
+        self.owner = repo_owner
+        self.repo = repo_name
+        self.branch = branch
+        self.base_url = f"https://api.github.com/repos/{self.owner}/{self.repo}/contents"
+        
+        # Silently tries to get token from secrets, otherwise mark as unavailable
+        try:  
+            token = secrets.get_secrets_from_paths()['GITHUB_TOKEN']
+            self.headers = {
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+            self.available = True
+        except:
+            self.headers = None
+            self.available = False
+
+    def is_available(self):
+        """Check if GitHub cache is available"""
+        # Should be unavailable if streamlit app is run locally
+        # Only available for my community cloud streamlit app as I provided my secret GITHUB TOKEN
+        return self.available
+    
+    def _get_file_content(self, path):
+        """Get file content from GitHub"""
+        try:
+            response = requests.get(f"{self.base_url}/{path}", headers=self.headers)
+            if response.status_code == 200:
+                content = base64.b64decode(response.json()["content"]).decode("utf-8")
+                return json.loads(content)
+            return None
+        except Exception:
+            return None
+    
+    @st.cache_data(ttl=3600)  # Cache for 1 hour
+    def _fetch_fresh_data(_self, reason=None):
+        """Helper method to fetch fresh data and format it consistently"""
+        message = f"{reason}, fetching fresh data..." if reason else "Fetching fresh data..."
+        with st.spinner(message):
+            df, failures, warnings = consolidate.create_combined_df()
+            return {
+                'source': 'direct',
+                'current': {
+                    'df': df,
+                    'failures': failures,
+                    'warnings': warnings,
+                    'timestamp': datetime.now(ZoneInfo("Asia/Singapore"))
+                }
+            }
+
+    @st.cache_data(ttl=3600)  # Cache for 1 hour
+    def get_data(_self): # _self so streamlit ignores parameter for hashing when caching. Self cannot be hashed.
+        """
+        Get fixed income data either from GitHub cache or direct fetch.
+        
+        This method implements the following logic:
+        1. If cache is not available (local installation):
+        - Directly fetch fresh data
+        
+        2. If cache is available:
+            a. Try to get metadata and current data from cache
+            b. If metadata or data is missing:
+                - Fallback to direct fetch
+            c. If data exists but is more than 2 days old:
+                - Fallback to direct fetch
+            d. If current data has failures and a successful version exists:
+                - Return both versions to allow user selection
+        
+        3. On any error during cache access:
+            - Fallback to direct fetch
+        
+        Returns:
+            dict: A dictionary containing data source and version information:
+            {
+                'source': str,  # Either 'cache' or 'direct'
+                'current': {    # Always present
+                    'df': pandas.DataFrame,    # The data
+                    'failures': list,          # Any fetch failures
+                    'warnings': list,          # Any warnings
+                    'timestamp': datetime      # When data was fetched/cached
+                },
+                'latest_successful': {         # Only present if current has failures
+                    'df': pandas.DataFrame,    # The last successful fetch
+                    'failures': list,          # Empty by definition
+                    'warnings': list,          # Any warnings from that fetch
+                    'timestamp': datetime      # When this version was fetched
+                }
+            }
+
+        Notes:
+            - All timestamps are in Singapore timezone (UTC+8)
+            - Data is cached per user session for 1 hour (ttl=3600)
+        """
+        try:
+            # If cache is not available (local installation)
+            if not _self.available:
+                return _self._fetch_fresh_data()
+
+            # Get metadata from cache
+            metadata = _self._get_file_content("cache/metadata.json")
+            if not metadata:
+                return _self._fetch_fresh_data("Cache unavailable")
+            
+            # Get most recent version
+            current_version = metadata["current_version"]
+            current_data = _self._get_file_content("cache/data_current.json")
+            
+            if current_data is None:
+                return _self._fetch_fresh_data("Cache data unavailable")
+            
+            # Process current version
+            current_df = pd.DataFrame(current_data)
+            current_timestamp = datetime.strptime(current_version["timestamp"], "%Y%m%d_%H%M%S")
+            current_timestamp = current_timestamp.replace(tzinfo=ZoneInfo("Asia/Singapore"))
+            
+            # Check if data is too old (more than 2 days)
+            now = datetime.now(ZoneInfo("Asia/Singapore"))
+            cache_age = now - current_timestamp
+            if cache_age > timedelta(days=2):
+                return _self._fetch_fresh_data("Cached data too old")
+
+            result = {
+                'source': 'cache',
+                'current': {
+                    'df': current_df,
+                    'failures': current_version["fetch_failures"],
+                    'warnings': current_version["warnings"],
+                    'timestamp': current_timestamp
+                }
+            }
+            
+            # If there are failures and a successful version exists, get it too
+            if current_version["fetch_failures"] and metadata.get("latest_successful"):
+                latest_successful_data = self._get_file_content("cache/data_latest_successful.json")
+                if latest_successful_data:
+                    successful_timestamp = datetime.strptime(
+                        metadata['latest_successful']["timestamp"], 
+                        "%Y%m%d_%H%M%S"
+                    ).replace(tzinfo=ZoneInfo("Asia/Singapore"))
+                    
+                    result['latest_successful'] = {
+                        'df': pd.DataFrame(latest_successful_data),
+                        'failures': [],  # By definition, latest successful has no failures
+                        'warnings': metadata['latest_successful']["warnings"],
+                        'timestamp': successful_timestamp
+                    }
+            
+            return result
+
+        except Exception as e:
+            # On any error, fallback to direct fetch
+            st.error(f"Error accessing cache: {e}")
+            return _self._fetch_fresh_data("Error accessing cache")
+
 
 def main():
     st.set_page_config(page_title="Singapore Fixed Income Analysis", page_icon="💰", layout="wide")
-    
+
     st.title("🏦 Singapore Retail Fixed Income Products Analysis")
     
     # Sidebar for navigation
@@ -21,14 +183,16 @@ def main():
         "Rate Comparisons"
     ])
     
-    # Investment amount input (common across most analyses)
+    # Sidebar investment amount input (common across most analyses)
     investment_amount = st.sidebar.number_input(
         "Investment Amount (SGD)", 
         min_value=500,
         value=10000, 
-        step=500
+        step=500,
+        help="Enter the amount you intend to invest."
     )
 
+    # Sidebar current SSB holding input (used to update available SSB deposit ranges)
     current_ssb_holdings = st.sidebar.number_input(
         "Current SSB Holdings (SGD)",
         min_value=0.0,
@@ -38,29 +202,7 @@ def main():
         help="Enter your current Singapore Savings Bonds (SSB) holdings. This affects your maximum possible investment in new SSBs."
     )
 
-    # Fetch combined dataframe
-    @st.cache_data
-    def load_combined_data():
-        """Load initial data with default SSB holdings (0)"""
-        try:
-            combined_df, fetch_failures, warnings = consolidate.create_combined_df()
-            
-            # Display warnings and fetch failures
-            if warnings:
-                st.sidebar.warning("Warnings:")
-                for warning in warnings:
-                    st.sidebar.warning(warning)
-            
-            if fetch_failures:
-                st.sidebar.error("Data Fetch Failures:")
-                for failure in fetch_failures:
-                    st.sidebar.error(f"{failure['product']}: {failure['error']}")
-            
-            return combined_df
-        except Exception as e:
-            st.error(f"Error loading data: {e}")
-            return None
-    
+    # Function to update SSB bounds
     def update_ssb_bounds(df, ssb_holdings):
         """Update SSB bounds based on current holdings"""
         # Create a copy to avoid modifying the cached dataframe
@@ -69,24 +211,70 @@ def main():
         # Update only SSB rows
         ssb_mask = df['Product'].str.contains('SSB', case=False, na=False)
         
-        # Calculate new bounds
+        # Calculate new bounds and update bounds in dataframe
         deposit_upper = max(200000 - ssb_holdings, 0)
         deposit_lower = 500 if deposit_upper >= 500 else 0
-        
-        # Update the bounds
         df.loc[ssb_mask, 'Deposit upper bound'] = deposit_upper
         df.loc[ssb_mask, 'Deposit lower bound'] = deposit_lower
         
         return df
 
-    # Load initial data
-    initial_df = load_combined_data()
+    # Initialize cache instance
+    @st.cache_resource
+    def get_cache_instance():
+        return GitHubCache(
+            repo_owner="GidTay",
+            repo_name="sgfixedincome_cache"
+        )
+    cache = get_cache_instance()
 
-    # Update bounds based on current holdings
-    if initial_df is not None:
-        combined_df = update_ssb_bounds(initial_df, current_ssb_holdings)
+    # Get data and initialize variables
+    versions = cache.get_data()
+    combined_df = versions['current']['df']
+    fetch_failures = versions['current']['failures']
+    warnings = versions['current']['warnings']
+    data_timestamp = versions['current']['timestamp']
+
+    # Only show option to use latest successful version if:
+    # 1. We're using cached data, not direct fetch (cahched data available and not old)
+    # 2. Current version has failures
+    # 3. A successful version exists
+    if (versions['source'] == 'cache' and 
+        fetch_failures and 
+        'latest_successful' in versions):
+        
+        use_latest_successful = st.sidebar.checkbox(
+            "Use latest successful version (no fetch failures)",
+            value=False,
+            help="Current version has some fetch failures. Check this to use the latest version with no failures."
+        )
+        
+        if use_latest_successful:
+            successful_version = versions['latest_successful']
+            combined_df = successful_version['df']
+            fetch_failures = successful_version['failures']
+            warnings = successful_version['warnings']
+            data_timestamp = successful_version['timestamp']
     
-    if combined_df is None:
+    # Display data source and timestamp in sidebar
+    source_text = "Directly fetched" if versions['source'] == 'direct' else "From cache"
+    st.sidebar.info(f"Data source: {source_text}\nTimestamp: {data_timestamp.strftime('%Y-%m-%d %H:%M:%S')} SGT")
+
+    # Display any warnings or failures
+    if warnings:
+        st.sidebar.warning("Warnings:")
+        for warning in warnings:
+            st.sidebar.warning(warning)
+    
+    if fetch_failures:
+        st.sidebar.error("Data Fetch Failures:")
+        for failure in fetch_failures:
+            st.sidebar.error(f"{failure['product']}: {failure['error']}")
+
+    # Update SSB bounds
+    if combined_df is not None:
+        combined_df = update_ssb_bounds(combined_df, current_ssb_holdings)
+    else:
         st.error("Could not load financial data. Please check your internet connection or try again later.")
         return
     
@@ -94,37 +282,52 @@ def main():
     if page == "Home":
         st.header("🏠 Home")
         st.markdown("""
-        This page aggregates data on SGD-denominated retail fixed income products
-        in Singapore, and provides basic tools for analysis.
-        
-        We only include risk-free and ultra-low risk products:
-        - Fixed deposit products from SDIC-insured banks (assets up to a S$100,000 are government insured)
-        - Central bank issued treasury bills (T-bills): zero default risk, no capital losses if held to maturity
-        - Singapore Savings Bonds (SSB): zero default risk, no capital losses regardless of redemption date.
-                    
-        **Note**: for bank fixed deposits, we only include standard board rates for new placements.
-                    Promotional rates are not considered. Rates are all quoted in % p.a. (compounded).
+            This page aggregates data on SGD-denominated retail fixed income products
+            in Singapore, and provides basic tools for analysis.
+            
+            We only include risk-free and ultra-low risk products:
+            - Fixed deposit products from SDIC-insured banks (assets up to a S$100,000 are government insured)
+            - Central bank issued treasury bills (T-bills): zero default risk, no capital losses if held to maturity
+            - Singapore Savings Bonds (SSB): zero default risk, no capital losses regardless of redemption date.
+                        
+            **Note**: for bank fixed deposits, we only include standard board rates for new placements.
+                        Promotional rates are not considered. Rates are all quoted in % p.a. (compounded).
         """)
         
         st.subheader("🔍 How to Use This Tool")
         st.markdown("""
-        **Investment Analysis Steps:**
-        1. Enter your investment amount and current SSB holdings (in SGD) in the sidebar.
-            The entire analysis is dependent on your investment amount. Your current SSB
-            holdings help us determine the maximum additional SSB investments you can make.
-        2. Use the navigation menu to access pages that analyse the data.
-        3. Adjust inputs (tenure/ product selection) as needed to customize your analysis.
-        
-        **Pages:**
-        - **Data Overview**: Overview of all available data including a summary, a plot,
-                    and a raw data table with tenures, rates, deposit ranges, required 
-                    investment multiples across products.
-        - **Best Rates and Returns**: Find highest return investments and 
-                    best rates across tenures
-        - **Better Allocation**: Find a possibly better investment strategy that allows for allocation
-                    across multiple products, rather than investing the full sum to a single product.
-        - **Provider Offerings**: View individual provider rates across deposit ranges and tenures
-        - **Rate Comparisons**: View rates across deposit ranges and providers for a given tenure
+            **Investment Analysis Steps:**
+            1. Enter your investment amount and current SSB holdings (in SGD) in the sidebar.
+                The entire analysis is dependent on your investment amount. Your current SSB
+                holdings help us determine the maximum additional SSB investments you can make.
+            2. Use the navigation menu to access pages that analyse the data.
+            3. Adjust inputs (tenure/ product selection) as needed to customize your analysis.
+            
+            **Pages:**
+            - **Data Overview**: Overview of all available data including a summary, a plot,
+                        and a raw data table with tenures, rates, deposit ranges, required 
+                        investment multiples across products.
+            - **Best Rates and Returns**: Find highest return investments and 
+                        best rates across tenures
+            - **Better Allocation**: Find a possibly better investment strategy that allows for allocation
+                        across multiple products, rather than investing the full sum to a single product.
+            - **Provider Offerings**: View individual provider rates across deposit ranges and tenures
+            - **Rate Comparisons**: View rates across deposit ranges and providers for a given tenure
+        """)
+
+        st.subheader("🗂️ Data fetching & Caching Logic")
+        st.markdown("""
+            To optimize performance and reliability:
+            1. Data is scraped and stored in a central cache once every 24 hours, using this [Github repository](https://github.com/GidTay/sgfixedincome_cache).
+            2. If the cached data has any fetch failures but a previous successful version exists (no failures), you'll see an option to use that version instead.
+            3. If the cached data is more than 2 days old, the tool will fetch fresh data directly.
+
+            When running the tool:
+            - If you're using the hosted web app, you'll see whether the data is from the cache or freshly fetched
+            - If you're running locally (streamlit run after pip install), the tool will always fetch fresh data
+            - The data timestamp (in Singapore time) is always displayed in the sidebar
+
+            If present, warnings and failures will be shown in the sidebar to highlight any data fetching issues.  
         """)
 
         st.subheader("💫 Like this project?")
@@ -133,7 +336,7 @@ def main():
             - 👨‍💻 Contribute to development on [Github](https://github.com/GidTay/sgfixedincome_pkg)
             - 🔗 [Connect with me](https://linktr.ee/gideon.tay)
             - ☕ Buy me a [coffee](https://ko-fi.com/gideontay)
-            """)
+        """)
 
     elif page == "Data Overview":
         st.header("Data Overview")

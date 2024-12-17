@@ -10,7 +10,7 @@ Are you a non-technical user? Use the app [here](https://sgfixedincome.streamlit
 
 This python package contains:
 
-- `scraper.py`: A generalized web scraper to extract data on fixed deposit rates from bank websites that display this data in a suitable table format.
+- `scraper.py`: A generalized web scraper to extract fixed deposit rates data from bank websites that display this data in a suitable table format.
 - `mas_api_client.py`: An API client that interacts with several Monetary Authority of Singapore (MAS) bonds and bills API endpoints. In particular, we provide functions to extract data on Singapore Savings Bonds (SSB) and Treasury bills (T-bills).
 - `consolidate.py`: Functions to format, merge, and consolidate data obtained from scraping bank websites and from the MAS API.
 - `analysis.py`: Functions to analyse and visualise extracted fixed income product data.
@@ -24,7 +24,7 @@ The package can be installed using:
 $ pip install sgfixedincome_pkg
 ```
 
-### Documentation and Usage
+## Documentation and Usage
 
 Detailed documentation can be found on [Read the Docs](https://sgfixedincome-pkg.readthedocs.io/en/latest/).
 
@@ -36,7 +36,7 @@ You can also explore detailed vignettes demonstrating the package's functionalit
 
 Or simply explore the [streamlit app](https://sgfixedincome.streamlit.app/).
 
-### Running the Web Interface
+## Running the Streamlit App
 After installation, find the installation location with:
 ```bash
 $ pip show sgfixedincome_pkg
@@ -55,6 +55,19 @@ $ streamlit run "C:\Users\John\Desktop\Folder\test_env\Lib\site-packages\sgfixed
 This will open a browser window with an interactive dashboard.
 
 Note: The web interface requires an active internet connection to fetch current rates and product information.
+
+## The App's Data Fetching & Caching Logic
+To optimize performance and reliability:
+1. Data is scraped and stored in a central cache once every 24 hours, using this [Github repository](https://github.com/GidTay/sgfixedincome_cache).
+2. If the cached data has any fetch failures but a previous successful version exists (no failures), you'll see an option to use that version instead.
+3. If the cached data is more than 2 days old, the tool will fetch fresh data directly.
+
+When running the tool:
+- If you're using the hosted web app, you'll see whether the data is from the cache or freshly fetched
+- If you're running locally (streamlit run after pip install), the tool will always fetch fresh data
+- The data timestamp (in Singapore time) is always displayed in the sidebar
+
+If present, warnings and failures will be shown in the sidebar to highlight any data fetching issues.  
 
 ## Contributing
 

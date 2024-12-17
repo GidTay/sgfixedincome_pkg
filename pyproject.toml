@@ -19,6 +19,7 @@ seaborn = "^0.13.2"
 numpy = "^2.2.0"
 pytz = "^2024.2"
 streamlit = "^1.41.0"
+tzdata = "^2024.2"
 
 [tool.poetry.dev-dependencies]
 
