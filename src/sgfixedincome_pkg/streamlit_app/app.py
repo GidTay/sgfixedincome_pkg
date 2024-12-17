@@ -17,9 +17,6 @@ class GitHubCache:
         self.branch = branch
         self.base_url = f"https://api.github.com/repos/{self.owner}/{self.repo}/contents"
         
-        # Debug: Print what's available in st module
-        st.sidebar.write("Checking secrets availability...")
-
         # Silently tries to get token from secrets, otherwise mark as unavailable
         try:  
             token = st.secrets["GITHUB_TOKEN"]
@@ -28,13 +25,9 @@ class GitHubCache:
                 "Accept": "application/vnd.github.v3+json"
             }
             self.available = True
-            st.sidebar.success("GitHub token found successfully")
         except (KeyError, FileNotFoundError) as e:
             self.headers = None
             self.available = False
-            st.sidebar.error(f"Error type: {type(e)}")
-            st.sidebar.error(f"Error details: {str(e)}")
-            st.sidebar.error(f"Full error: {repr(e)}")
 
     def is_available(self):
         """Check if GitHub cache is available"""
@@ -49,14 +42,8 @@ class GitHubCache:
             if response.status_code == 200:
                 content = base64.b64decode(response.json()["content"]).decode("utf-8")
                 return json.loads(content)
-            st.sidebar.error(f"GitHub API error: Status {response.status_code}")
-            if response.status_code == 404:
-                st.sidebar.error("Cache files not found. Check repository name and path.")
-            elif response.status_code == 401:
-                st.sidebar.error("GitHub API authentication failed. Check token.")
             return None
         except Exception:
-            st.sidebar.error(f"Error fetching from GitHub: {str(e)}")
             return None
     
     @st.cache_data(ttl=3600)  # Cache for 1 hour
@@ -230,14 +217,6 @@ def main():
         df.loc[ssb_mask, 'Deposit lower bound'] = deposit_lower
         
         return df
-    
-    # Debug secrets
-    try:
-        st.sidebar.write("Direct secrets test:")
-        token = st.secrets['GITHUB_TOKEN']
-        st.sidebar.success("Can access secrets directly")
-    except Exception as e:
-        st.sidebar.error(f"Direct secrets test failed: {str(e)}")
 
     # Initialize cache instance
     @st.cache_resource
