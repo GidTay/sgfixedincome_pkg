@@ -26,9 +26,11 @@ class GitHubCache:
                 "Accept": "application/vnd.github.v3+json"
             }
             self.available = True
-        except:
+            st.sidebar.success("GitHub token found successfully")
+        except Exception as e:
             self.headers = None
             self.available = False
+            st.sidebar.error(f"GitHub token not available: {str(e)}")
 
     def is_available(self):
         """Check if GitHub cache is available"""
@@ -43,8 +45,12 @@ class GitHubCache:
             if response.status_code == 200:
                 content = base64.b64decode(response.json()["content"]).decode("utf-8")
                 return json.loads(content)
+            st.sidebar.error(f"GitHub API error: Status {response.status_code}")
+            if response.status_code == 404:
+                st.sidebar.error("Cache files not found. Check repository name and path.")
             return None
         except Exception:
+            st.sidebar.error(f"Error fetching from GitHub: {str(e)}")
             return None
     
     @st.cache_data(ttl=3600)  # Cache for 1 hour
