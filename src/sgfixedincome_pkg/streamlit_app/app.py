@@ -17,6 +17,9 @@ class GitHubCache:
         self.branch = branch
         self.base_url = f"https://api.github.com/repos/{self.owner}/{self.repo}/contents"
         
+        # Debug: Print what's available in st module
+        st.sidebar.write("Checking secrets availability...")
+
         # Silently tries to get token from secrets, otherwise mark as unavailable
         try:  
             token = st.secrets["GITHUB_TOKEN"]
@@ -29,7 +32,9 @@ class GitHubCache:
         except (KeyError, FileNotFoundError) as e:
             self.headers = None
             self.available = False
-            st.sidebar.error(f"GitHub token not available: {str(e)}")
+            st.sidebar.error(f"Error type: {type(e)}")
+            st.sidebar.error(f"Error details: {str(e)}")
+            st.sidebar.error(f"Full error: {repr(e)}")
 
     def is_available(self):
         """Check if GitHub cache is available"""
@@ -225,6 +230,14 @@ def main():
         df.loc[ssb_mask, 'Deposit lower bound'] = deposit_lower
         
         return df
+    
+    # Debug secrets
+    try:
+        st.sidebar.write("Direct secrets test:")
+        token = st.secrets['GITHUB_TOKEN']
+        st.sidebar.success("Can access secrets directly")
+    except Exception as e:
+        st.sidebar.error(f"Direct secrets test failed: {str(e)}")
 
     # Initialize cache instance
     @st.cache_resource
