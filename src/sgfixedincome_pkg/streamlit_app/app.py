@@ -20,14 +20,14 @@ class GitHubCache:
         
         # Silently tries to get token from secrets, otherwise mark as unavailable
         try:  
-            token = secrets.get_secrets_from_paths()['GITHUB_TOKEN']
+            token = st.secrets["GITHUB_TOKEN"]
             self.headers = {
                 "Authorization": f"token {token}",
                 "Accept": "application/vnd.github.v3+json"
             }
             self.available = True
             st.sidebar.success("GitHub token found successfully")
-        except Exception as e:
+        except (KeyError, FileNotFoundError) as e:
             self.headers = None
             self.available = False
             st.sidebar.error(f"GitHub token not available: {str(e)}")
@@ -48,6 +48,8 @@ class GitHubCache:
             st.sidebar.error(f"GitHub API error: Status {response.status_code}")
             if response.status_code == 404:
                 st.sidebar.error("Cache files not found. Check repository name and path.")
+            elif response.status_code == 401:
+                st.sidebar.error("GitHub API authentication failed. Check token.")
             return None
         except Exception:
             st.sidebar.error(f"Error fetching from GitHub: {str(e)}")
