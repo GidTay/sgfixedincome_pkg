@@ -6,7 +6,7 @@ A python package to aggregate and analyse data on SGD-denominated retail fixed i
 
 Are you a non-technical user? Use the app [here](https://sgfixedincome.streamlit.app/).
 
-Lazy to read the documentation? Watch [this video]((https://youtu.be/X_r8mnLpAo8)) for an overview of the package and web app.
+Lazy to read the documentation? Watch [this video](https://youtu.be/X_r8mnLpAo8) for an overview of the package and web app.
 
 ## Introduction
 
